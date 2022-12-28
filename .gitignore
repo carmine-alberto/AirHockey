@@ -1,0 +1,7 @@
+*.vcxproj
+
+*.vcxproj.*
+
+*.sln
+
+*.pdf
