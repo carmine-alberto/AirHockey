@@ -13,6 +13,13 @@ struct UniformBufferObject {
 };
 
 
+struct Point {
+	float x;
+	float y;
+	float vx;
+	float vy;
+};
+
 // MAIN ! 
 class MyProject : public BaseProject {
 	protected:
@@ -224,51 +231,111 @@ class MyProject : public BaseProject {
 	// Here is where you update the uniforms.
 	// Very likely this will be where you will be writing the logic of your application.
 	void updateUniformBuffer(uint32_t currentImage) {
-		static auto startTime = std::chrono::high_resolution_clock::now();
+		static auto lastTime = std::chrono::high_resolution_clock::now();
 		auto currentTime = std::chrono::high_resolution_clock::now();
-		float time = std::chrono::duration<float, std::chrono::seconds::period>
-					(currentTime - startTime).count();
-		static float lastTime = 0.0f;
-		float deltaT = time - lastTime;
+		float dt = std::chrono::duration<float, std::chrono::seconds::period>
+			(currentTime - lastTime).count();
+
+		//WTF is (*was) going on here with the time handling?
 
 		static int state = 0;		// 0 - everything is still.
 									// 3 - three wheels are turning
 									// 2 - two wheels are turning
 									// 1 - one wheels is turning
-									
-		static float debounce = time;
-		static float ang1 = 0.0f;
-		static float ang2 = 0.0f;
-		static float ang3 = 0.0f;
-		static float ang_handle = 0.0f;
 
-		if(glfwGetKey(window, GLFW_KEY_SPACE)) {
-			if(time - debounce > 0.15) {
-				debounce = time;
-				
+		//static float debounce = time;
 
-				if(state == 0) {
-					state = 3;
-				} else {
-					state--;
-					ang_handle = 1.01f; //Set to 01 so that it's set to 1.00 below at each reset
-				}
+		float halfTableLength = 10.0f; //TODO Modify according to the model
+		float halfTableWidth = 3.0f; //TODO Modify according to the model
+		float puckRadius = 1.0f; //TODO Modify according to the model
+
+		float paddleRadius = 2.0f; //TODO Modify according to the model
+		float paddleVelocity = 0.1f;
+
+		float scoreAreaLength = 1.0f; //TODO ^^
+
+		//Assumption: the table is centered in (0, 0)
+		static Point lPaddle = { -halfTableLength + paddleRadius, 0.0f, 0.0f, 0.0f };
+		static Point rPaddle = { halfTableLength - paddleRadius, 0.0f, 0.0f, 0.0f };
+		static Point puck = { 0.0f, -halfTableWidth + puckRadius, 0.0f, 0.0f };
+
+		if (glfwGetKey(window, GLFW_KEY_SPACE)) { //START
+			/*if (time - debounce > 0.15) {  Does it actually make sense implemented this way?
+				debounce = time;*/
+			if (puck.vx == 0.0f && puck.vy == 0.0f) {
+				puck.vx = 2.0f; //TODO make it random outside a cone
+				puck.vy = 1.0f;
 			}
 		}
-		
-		ang_handle = (ang_handle > 0.0f) ? (ang_handle - 0.01f) : ang_handle;
-		
 
-		if(state == 3) {
-			ang3 = (ang3 == 24) ? 0 : ang3 + 1;
-		}
-		if(state >= 2) {
-			ang2 = (ang2 == 24) ? 0 : ang2 + 1;
-		}
-		if(state >= 1) {
-			ang1 = (ang1 == 24) ? 0 : ang1 + 1;
+		lPaddle.vx = 0.0f;
+		lPaddle.vy = 0.0f;
+		
+		if (glfwGetKey(window, GLFW_KEY_A) && /*TODO lPaddle not at the border*/) {
+			lPaddle.vx += paddleVelocity;
 		}
 
+		if (glfwGetKey(window, GLFW_KEY_D)) { //TODO same checks as above
+			lPaddle.vx += paddleVelocity;
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_W)) {
+			lPaddle.vy -= paddleVelocity;
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_S)) {
+			lPaddle.vy += paddleVelocity;
+		}
+
+		rPaddle.vx = 0.0f;
+		rPaddle.vy = 0.0f;
+		if (glfwGetKey(window, GLFW_KEY_LEFT)) {  //TODO Same checks as above
+			rPaddle.vx += paddleVelocity;
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_RIGHT)) {
+			rPaddle.vx += paddleVelocity;
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_UP)) {
+			rPaddle.vy -= paddleVelocity;
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_DOWN)) {
+			rPaddle.vy += paddleVelocity;
+		}
+
+		lPaddle.x = lPaddle.vx * dt;
+		lPaddle.y = lPaddle.vy * dt;
+		
+		rPaddle.x = rPaddle.vx * dt;
+		rPaddle.y = rPaddle.vy * dt;
+
+		glm::vec2 normalVector;
+		//Each case has to be handled separately otherwise it's not possible to determine which normal vector has to be used
+		if (puck.y >= halfTableWidth - puckRadius) //UPPER SIDE
+			normalVector = glm::vec2(0.0f, 1.0f);
+		else if (puck.y <= -halfTableWidth + puckRadius) 
+			normalVector = glm::vec2(0.0f, -1.0f); //LOWER SIDE
+		//else if (/*curved pieces collision detected*/)
+		//else if (/*paddle collision detected */ ) 
+		
+		//Calculate new vx, vy using the normal vector as done in the Phong model:
+		//Normalize v, flip it (-1) and extract the modulus -> If defined separately at 266 (M * component), modulus is given
+		//Dot product with normal, 2*result - initial normalized vector, times M
+
+		//Handle case where nothing changes: setting a default normal and checking it probably the cheapest way?
+			
+		
+		//if line was crossed
+			//reset state
+		//else update puck position
+			puck.x = puck.vx * dt;
+			puck.y = puck.vy * dt;
+				
+			
+		}
+		
 		
 					
 		globalUniformBufferObject gubo{};
