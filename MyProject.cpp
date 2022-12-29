@@ -2,6 +2,8 @@
 
 #include "MyProject.hpp"
 
+#define NUM_VIEWS 3
+
 // The uniform buffer object used in this example
 struct globalUniformBufferObject {
 	alignas(16) glm::mat4 view;
@@ -247,6 +249,7 @@ class MyProject : public BaseProject {
 
 		float halfTableLength = 10.0f; //TODO Modify according to the model
 		float halfTableWidth = 3.0f; //TODO Modify according to the model
+		float halfTableHeight = 0.05f;
 		float puckRadius = 1.0f; //TODO Modify according to the model
 
 		float paddleRadius = 2.0f; //TODO Modify according to the model
@@ -321,7 +324,7 @@ class MyProject : public BaseProject {
 		//else if (/*paddle collision detected */ ) 
 		
 		//Calculate new vx, vy using the normal vector as done in the Phong model:
-		//Normalize v, flip it (-1) and extract the modulus -> If defined separately at 266 (M * component), modulus is given
+		//Normalize v, flip it (-1) and extract the modulus -> If defined separately at 266 (M * component), modulus is given  --> UPDATE: Normalization not required if normal is provided normalized (or is normalized below)
 		//Dot product with normal, 2*result - initial normalized vector, times M
 
 		//Handle case where nothing changes: setting a default normal and checking it probably the cheapest way?
@@ -332,20 +335,32 @@ class MyProject : public BaseProject {
 		//else update puck position
 			puck.x = puck.vx * dt;
 			puck.y = puck.vy * dt;
-				
-			
-		}
-		
-		
-					
+
+
 		globalUniformBufferObject gubo{};
 		UniformBufferObject ubo{};
-		
+				
 		void* data;
 
-		gubo.view = glm::lookAt(glm::vec3(0.0f, 3.0f, 3.0f),
-							   glm::vec3(0.0f, 0.8f, 0.0f),
-							   glm::vec3(0.0f, 1.0f, 0.0f));
+		float cameraHeight = 3.0f;
+		glm::mat4 viewMatrices[NUM_VIEWS] = {
+			glm::lookAt(glm::vec3(0.0f, 3.0f, 1.0f), //Center
+						glm::vec3(0.0f, halfTableHeight, 0.0f),
+						glm::vec3(0.0f, 1.0f, 0.0f)),
+			glm::lookAt(glm::vec3(-halfTableLength - 1.0f, cameraHeight, 0.0f), //Left player
+						glm::vec3(0.0f, halfTableHeight, 0.0f),
+						glm::vec3(0.0f, 1.0f, 0.0f)),
+			glm::lookAt(glm::vec3(halfTableLength + 1.0f, cameraHeight, 0.0f), //Right player
+						glm::vec3(0.0f, halfTableHeight, 0.0f),
+						glm::vec3(0.0f, 1.0f, 0.0f))
+
+		};
+		static unsigned viewIndex = 0;
+
+		if (glfwGetKey(window, GLFW_KEY_V))
+			viewIndex = (viewIndex + 1) % NUM_VIEWS;
+		gubo.view = viewMatrices[viewIndex];
+
 		gubo.proj = glm::perspective(glm::radians(45.0f),
 						swapChainExtent.width / (float) swapChainExtent.height,
 						0.1f, 10.0f);
