@@ -37,18 +37,16 @@ class MyProject : public BaseProject {
 	// Models, textures and Descriptors (values assigned to the uniforms)
 	Model M_SlBody;
 	Texture T_SlBody;
-	DescriptorSet DS_SlBody;	// instance DSLobj
+	DescriptorSet DS_Table;	// instance DSLobj
 
 	Model M_SlHandle;
 	Texture T_SlHandle;
-	DescriptorSet DS_SlHandle;	// instance DSLobj
+	DescriptorSet DS_Puck;	// instance DSLobj
 
 	Model M_SlWheel;
 	Texture T_SlWheel;
-	DescriptorSet DS_SlWheel1;	// instance DSLobj
-	DescriptorSet DS_SlWheel2;	// instance DSLobj
-	DescriptorSet DS_SlWheel3;	// instance DSLobj
-
+	DescriptorSet DS_LeftPaddle;	// instance DSLobj
+	DescriptorSet DS_RightPaddle;	// instance DSLobj
 	
 	DescriptorSet DS_global;
 
@@ -91,7 +89,7 @@ class MyProject : public BaseProject {
 		// Models, textures and Descriptors (values assigned to the uniforms)
 		M_SlBody.init(this, "models/SlotBody.obj");
 		T_SlBody.init(this, "textures/SlotBody.png");
-		DS_SlBody.init(this, &DSLobj, {
+		DS_Table.init(this, &DSLobj, {
 		// the second parameter, is a pointer to the Uniform Set Layout of this set
 		// the last parameter is an array, with one element per binding of the set.
 		// first  elmenet : the binding number
@@ -103,7 +101,7 @@ class MyProject : public BaseProject {
 				});
 		M_SlHandle.init(this, "models/SlotHandle.obj");
 		T_SlHandle.init(this, "textures/SlotHandle.png");
-		DS_SlHandle.init(this, &DSLobj, {
+		DS_Puck.init(this, &DSLobj, {
 					{0, UNIFORM, sizeof(UniformBufferObject), nullptr},
 					{1, TEXTURE, 0, &T_SlHandle}
 				});
@@ -111,15 +109,11 @@ class MyProject : public BaseProject {
 
 		M_SlWheel.init(this, "models/SlotWheel.obj");
 		T_SlWheel.init(this, "textures/SlotWheel.png");
-		DS_SlWheel1.init(this, &DSLobj, {
+		DS_LeftPaddle.init(this, &DSLobj, {
 					{0, UNIFORM, sizeof(UniformBufferObject), nullptr},
 					{1, TEXTURE, 0, &T_SlWheel}
 				});
-		DS_SlWheel2.init(this, &DSLobj, {
-					{0, UNIFORM, sizeof(UniformBufferObject), nullptr},
-					{1, TEXTURE, 0, &T_SlWheel}
-				});
-		DS_SlWheel3.init(this, &DSLobj, {
+		DS_RightPaddle.init(this, &DSLobj, {
 					{0, UNIFORM, sizeof(UniformBufferObject), nullptr},
 					{1, TEXTURE, 0, &T_SlWheel}
 				});
@@ -134,17 +128,16 @@ class MyProject : public BaseProject {
 
 	// Here you destroy all the objects you created!		
 	void localCleanup() {
-		DS_SlBody.cleanup();
+		DS_Table.cleanup();
 		T_SlBody.cleanup();
 		M_SlBody.cleanup();
 
-		DS_SlHandle.cleanup();
+		DS_Puck.cleanup();
 		T_SlHandle.cleanup();
 		M_SlHandle.cleanup();
 		
-		DS_SlWheel1.cleanup();
-		DS_SlWheel2.cleanup();
-		DS_SlWheel3.cleanup();
+		DS_LeftPaddle.cleanup();
+		DS_RightPaddle.cleanup();
 		M_SlWheel.cleanup();
 		T_SlWheel.cleanup();
 
@@ -180,7 +173,7 @@ class MyProject : public BaseProject {
 		// property .descriptorSets of a descriptor set contains its elements.
 		vkCmdBindDescriptorSets(commandBuffer,
 						VK_PIPELINE_BIND_POINT_GRAPHICS,
-						P1.pipelineLayout, 1, 1, &DS_SlBody.descriptorSets[currentImage],
+						P1.pipelineLayout, 1, 1, &DS_Table.descriptorSets[currentImage],
 						0, nullptr);
 						
 		// property .indices.size() of models, contains the number of triangles * 3 of the mesh.
@@ -195,7 +188,7 @@ class MyProject : public BaseProject {
 								VK_INDEX_TYPE_UINT32);
 		vkCmdBindDescriptorSets(commandBuffer,
 						VK_PIPELINE_BIND_POINT_GRAPHICS,
-						P1.pipelineLayout, 1, 1, &DS_SlHandle.descriptorSets[currentImage],
+						P1.pipelineLayout, 1, 1, &DS_Puck.descriptorSets[currentImage],
 						0, nullptr);
 		vkCmdDrawIndexed(commandBuffer,
 					static_cast<uint32_t>(M_SlHandle.indices.size()), 1, 0, 0, 0);
@@ -209,21 +202,14 @@ class MyProject : public BaseProject {
 								VK_INDEX_TYPE_UINT32);
 		vkCmdBindDescriptorSets(commandBuffer,
 						VK_PIPELINE_BIND_POINT_GRAPHICS,
-						P1.pipelineLayout, 1, 1, &DS_SlWheel1.descriptorSets[currentImage],
+						P1.pipelineLayout, 1, 1, &DS_LeftPaddle.descriptorSets[currentImage],
 						0, nullptr);
 		vkCmdDrawIndexed(commandBuffer,
 					static_cast<uint32_t>(M_SlWheel.indices.size()), 1, 0, 0, 0);
 
 		vkCmdBindDescriptorSets(commandBuffer,
 						VK_PIPELINE_BIND_POINT_GRAPHICS,
-						P1.pipelineLayout, 1, 1, &DS_SlWheel2.descriptorSets[currentImage],
-						0, nullptr);
-		vkCmdDrawIndexed(commandBuffer,
-					static_cast<uint32_t>(M_SlWheel.indices.size()), 1, 0, 0, 0);
-
-		vkCmdBindDescriptorSets(commandBuffer,
-						VK_PIPELINE_BIND_POINT_GRAPHICS,
-						P1.pipelineLayout, 1, 1, &DS_SlWheel3.descriptorSets[currentImage],
+						P1.pipelineLayout, 1, 1, &DS_RightPaddle.descriptorSets[currentImage],
 						0, nullptr);
 		vkCmdDrawIndexed(commandBuffer,
 					static_cast<uint32_t>(M_SlWheel.indices.size()), 1, 0, 0, 0);
@@ -300,7 +286,7 @@ class MyProject : public BaseProject {
 			rPaddle.vx += paddleVelocity;
 		}
 
-		if (glfwGetKey(window, GLFW_KEY_UP)) {
+		if (glfwGetKey(window, GLFW_KEY_UP)) {  //y-axis is reversed to match z-axis later during matrix creation
 			rPaddle.vy -= paddleVelocity;
 		}
 
@@ -313,6 +299,8 @@ class MyProject : public BaseProject {
 		
 		rPaddle.x = rPaddle.vx * dt;
 		rPaddle.y = rPaddle.vy * dt;
+
+		//Check that paddles don't go outside the table
 
 		glm::vec2 normalVector;
 		//Each case has to be handled separately otherwise it's not possible to determine which normal vector has to be used
@@ -372,52 +360,39 @@ class MyProject : public BaseProject {
 		vkUnmapMemory(device, DS_global.uniformBuffersMemory[0][currentImage]);
 		
 
-		// For the Slot Body
+		// For the Table body
 		ubo.model = glm::mat4(1.0f);
-		vkMapMemory(device, DS_SlBody.uniformBuffersMemory[0][currentImage], 0,
+		vkMapMemory(device, DS_Table.uniformBuffersMemory[0][currentImage], 0,
 							sizeof(ubo), 0, &data);
 		memcpy(data, &ubo, sizeof(ubo));
-		vkUnmapMemory(device, DS_SlBody.uniformBuffersMemory[0][currentImage]);
+		vkUnmapMemory(device, DS_Table.uniformBuffersMemory[0][currentImage]);
 
-		// For the Slot Handle
-		ubo.model = glm::translate(glm::mat4(1.0f),glm::vec3(0.3f,0.5f,-0.15f)) *
-					glm::rotate(glm::mat4(1.0f),
-						ang_handle * glm::radians(60.0f),
-						glm::vec3(1.0f, 0.0f, 0.0f));
-		vkMapMemory(device, DS_SlHandle.uniformBuffersMemory[0][currentImage], 0,
+		// For the Puck
+		const float halfPuckHeight = 0.1f; //TODO Sync with model
+		ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(puck.x, halfTableHeight + halfPuckHeight , puck.y));
+					
+		vkMapMemory(device, DS_Puck.uniformBuffersMemory[0][currentImage], 0,
 							sizeof(ubo), 0, &data);
 		memcpy(data, &ubo, sizeof(ubo));
-		vkUnmapMemory(device, DS_SlHandle.uniformBuffersMemory[0][currentImage]);
+		vkUnmapMemory(device, DS_Puck.uniformBuffersMemory[0][currentImage]);
 
-		// For the Slot Wheel1
-		ubo.model = glm::translate(glm::mat4(1.0f),glm::vec3(-0.15f,0.93f,-0.15f)) *
-					glm::rotate(glm::mat4(1.0f),
-								ang1/24.0f * glm::radians(360.0f),
-								glm::vec3(1.0f, 0.0f, 0.0f));
-		vkMapMemory(device, DS_SlWheel1.uniformBuffersMemory[0][currentImage], 0,
+		// For the lPaddle
+		const float halfPaddleHeight = 0.1f;
+		ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(lPaddle.x, halfTableHeight + halfPaddleHeight, lPaddle.y));
+					
+		vkMapMemory(device, DS_LeftPaddle.uniformBuffersMemory[0][currentImage], 0,
 							sizeof(ubo), 0, &data);
 		memcpy(data, &ubo, sizeof(ubo));
-		vkUnmapMemory(device, DS_SlWheel1.uniformBuffersMemory[0][currentImage]);
+		vkUnmapMemory(device, DS_LeftPaddle.uniformBuffersMemory[0][currentImage]);
 
-		// For the Slot Wheel2
-		ubo.model = glm::translate(glm::mat4(1.0f),glm::vec3(0.0f,0.93f,-0.15f))*
-					glm::rotate(glm::mat4(1.0f),
-								ang2 / 24.0f * glm::radians(360.0f),
-								glm::vec3(1.0f, 0.0f, 0.0f));
-		vkMapMemory(device, DS_SlWheel2.uniformBuffersMemory[0][currentImage], 0,
+		// For the rPaddle
+		ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(rPaddle.x, halfTableHeight + halfPaddleHeight, rPaddle.y));
+					
+		vkMapMemory(device, DS_RightPaddle.uniformBuffersMemory[0][currentImage], 0,
 							sizeof(ubo), 0, &data);
 		memcpy(data, &ubo, sizeof(ubo));
-		vkUnmapMemory(device, DS_SlWheel2.uniformBuffersMemory[0][currentImage]);
+		vkUnmapMemory(device, DS_RightPaddle.uniformBuffersMemory[0][currentImage]);
 
-		// For the Slot Wheel3
-		ubo.model = glm::translate(glm::mat4(1.0f),glm::vec3(0.15f,0.93f,-0.15f))*
-					glm::rotate(glm::mat4(1.0f),
-								ang3 / 24.0f * glm::radians(360.0f),
-								glm::vec3(1.0f, 0.0f, 0.0f));
-		vkMapMemory(device, DS_SlWheel3.uniformBuffersMemory[0][currentImage], 0,
-							sizeof(ubo), 0, &data);
-		memcpy(data, &ubo, sizeof(ubo));
-		vkUnmapMemory(device, DS_SlWheel3.uniformBuffersMemory[0][currentImage]);
 	}	
 };
 
