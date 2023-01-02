@@ -35,16 +35,16 @@ class MyProject : public BaseProject {
 	Pipeline P1;
 
 	// Models, textures and Descriptors (values assigned to the uniforms)
-	Model M_SlBody;
-	Texture T_SlBody;
+	Model M_Table;
+	Texture T_Table;
 	DescriptorSet DS_Table;	// instance DSLobj
 
-	Model M_SlHandle;
-	Texture T_SlHandle;
+	Model M_Puck;
+	Texture T_Puck;
 	DescriptorSet DS_Puck;	// instance DSLobj
 
-	Model M_SlWheel;
-	Texture T_SlWheel;
+	Model M_Paddle;
+	Texture T_Paddle;
 	DescriptorSet DS_LeftPaddle;	// instance DSLobj
 	DescriptorSet DS_RightPaddle;	// instance DSLobj
 	
@@ -54,10 +54,10 @@ class MyProject : public BaseProject {
 	// Here you set the main application parameters
 	void setWindowParameters() {
 		// window size, titile and initial background
-		windowWidth = 800;
-		windowHeight = 600;
-		windowTitle = "My Project";
-		initialBackgroundColor = {1.0f, 1.0f, 1.0f, 1.0f};
+		windowWidth = 1800;
+		windowHeight = 1000;
+		windowTitle = "Air Hockey";
+		initialBackgroundColor = {0.0f, 0.5f, 0.0f, 1.0f};
 		
 		// Descriptor pool sizes
 		uniformBlocksInPool = 6;
@@ -87,8 +87,8 @@ class MyProject : public BaseProject {
 		P1.init(this, "shaders/vert.spv", "shaders/frag.spv", {&DSLglobal, &DSLobj});
 
 		// Models, textures and Descriptors (values assigned to the uniforms)
-		M_SlBody.init(this, "models/SlotBody.obj");
-		T_SlBody.init(this, "textures/SlotBody.png");
+		M_Table.init(this, "models/table.obj");
+		T_Table.init(this, "textures/airhockey-background.png");
 		DS_Table.init(this, &DSLobj, {
 		// the second parameter, is a pointer to the Uniform Set Layout of this set
 		// the last parameter is an array, with one element per binding of the set.
@@ -97,25 +97,26 @@ class MyProject : public BaseProject {
 		// third  element : only for UNIFORMs, the size of the corresponding C++ object
 		// fourth element : only for TEXTUREs, the pointer to the corresponding texture object
 					{0, UNIFORM, sizeof(UniformBufferObject), nullptr},
-					{1, TEXTURE, 0, &T_SlBody}
+					{1, TEXTURE, 0, &T_Table}
 				});
-		M_SlHandle.init(this, "models/SlotHandle.obj");
-		T_SlHandle.init(this, "textures/SlotHandle.png");
+		
+		M_Puck.init(this, "models/disk.obj");
+		T_Puck.init(this, "textures/puck.png");
 		DS_Puck.init(this, &DSLobj, {
 					{0, UNIFORM, sizeof(UniformBufferObject), nullptr},
-					{1, TEXTURE, 0, &T_SlHandle}
+					{1, TEXTURE, 0, &T_Puck}
 				});
 
 
-		M_SlWheel.init(this, "models/SlotWheel.obj");
-		T_SlWheel.init(this, "textures/SlotWheel.png");
+		M_Paddle.init(this, "models/disk.obj"); //TODO Rename
+		T_Paddle.init(this, "textures/paddle.png");
 		DS_LeftPaddle.init(this, &DSLobj, {
 					{0, UNIFORM, sizeof(UniformBufferObject), nullptr},
-					{1, TEXTURE, 0, &T_SlWheel}
+					{1, TEXTURE, 0, &T_Paddle}
 				});
 		DS_RightPaddle.init(this, &DSLobj, {
 					{0, UNIFORM, sizeof(UniformBufferObject), nullptr},
-					{1, TEXTURE, 0, &T_SlWheel}
+					{1, TEXTURE, 0, &T_Paddle}
 				});
 
 
@@ -129,17 +130,17 @@ class MyProject : public BaseProject {
 	// Here you destroy all the objects you created!		
 	void localCleanup() {
 		DS_Table.cleanup();
-		T_SlBody.cleanup();
-		M_SlBody.cleanup();
+		T_Table.cleanup();
+		M_Table.cleanup();
 
 		DS_Puck.cleanup();
-		T_SlHandle.cleanup();
-		M_SlHandle.cleanup();
+		T_Puck.cleanup();
+		M_Puck.cleanup();
 		
 		DS_LeftPaddle.cleanup();
 		DS_RightPaddle.cleanup();
-		M_SlWheel.cleanup();
-		T_SlWheel.cleanup();
+		M_Paddle.cleanup();
+		T_Paddle.cleanup();
 
 		DS_global.cleanup();
 
@@ -161,12 +162,12 @@ class MyProject : public BaseProject {
 						0, nullptr);
 
 				
-		VkBuffer vertexBuffers[] = {M_SlBody.vertexBuffer};
+		VkBuffer vertexBuffers[] = {M_Table.vertexBuffer};
 		// property .vertexBuffer of models, contains the VkBuffer handle to its vertex buffer
 		VkDeviceSize offsets[] = {0};
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 		// property .indexBuffer of models, contains the VkBuffer handle to its index buffer
-		vkCmdBindIndexBuffer(commandBuffer, M_SlBody.indexBuffer, 0,
+		vkCmdBindIndexBuffer(commandBuffer, M_Table.indexBuffer, 0,
 								VK_INDEX_TYPE_UINT32);
 
 		// property .pipelineLayout of a pipeline contains its layout.
@@ -178,41 +179,41 @@ class MyProject : public BaseProject {
 						
 		// property .indices.size() of models, contains the number of triangles * 3 of the mesh.
 		vkCmdDrawIndexed(commandBuffer,
-					static_cast<uint32_t>(M_SlBody.indices.size()), 1, 0, 0, 0);
+					static_cast<uint32_t>(M_Table.indices.size()), 1, 0, 0, 0);
 
 
-		VkBuffer vertexBuffers2[] = {M_SlHandle.vertexBuffer};
+		VkBuffer vertexBuffers2[] = {M_Puck.vertexBuffer};
 		VkDeviceSize offsets2[] = {0};
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers2, offsets2);
-		vkCmdBindIndexBuffer(commandBuffer, M_SlHandle.indexBuffer, 0,
+		vkCmdBindIndexBuffer(commandBuffer, M_Puck.indexBuffer, 0,
 								VK_INDEX_TYPE_UINT32);
 		vkCmdBindDescriptorSets(commandBuffer,
 						VK_PIPELINE_BIND_POINT_GRAPHICS,
 						P1.pipelineLayout, 1, 1, &DS_Puck.descriptorSets[currentImage],
 						0, nullptr);
 		vkCmdDrawIndexed(commandBuffer,
-					static_cast<uint32_t>(M_SlHandle.indices.size()), 1, 0, 0, 0);
+					static_cast<uint32_t>(M_Puck.indices.size()), 1, 0, 0, 0);
 
 
 
-		VkBuffer vertexBuffers3[] = {M_SlWheel.vertexBuffer};
+		VkBuffer vertexBuffers3[] = {M_Paddle.vertexBuffer};
 		VkDeviceSize offsets3[] = {0};
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers3, offsets3);
-		vkCmdBindIndexBuffer(commandBuffer, M_SlWheel.indexBuffer, 0,
+		vkCmdBindIndexBuffer(commandBuffer, M_Paddle.indexBuffer, 0,
 								VK_INDEX_TYPE_UINT32);
 		vkCmdBindDescriptorSets(commandBuffer,
 						VK_PIPELINE_BIND_POINT_GRAPHICS,
 						P1.pipelineLayout, 1, 1, &DS_LeftPaddle.descriptorSets[currentImage],
 						0, nullptr);
 		vkCmdDrawIndexed(commandBuffer,
-					static_cast<uint32_t>(M_SlWheel.indices.size()), 1, 0, 0, 0);
+					static_cast<uint32_t>(M_Paddle.indices.size()), 1, 0, 0, 0);
 
 		vkCmdBindDescriptorSets(commandBuffer,
 						VK_PIPELINE_BIND_POINT_GRAPHICS,
 						P1.pipelineLayout, 1, 1, &DS_RightPaddle.descriptorSets[currentImage],
 						0, nullptr);
 		vkCmdDrawIndexed(commandBuffer,
-					static_cast<uint32_t>(M_SlWheel.indices.size()), 1, 0, 0, 0);
+					static_cast<uint32_t>(M_Paddle.indices.size()), 1, 0, 0, 0);
 
 	}
 
@@ -226,42 +227,43 @@ class MyProject : public BaseProject {
 
 		//WTF is (*was) going on here with the time handling?
 
-		static int state = 0;		// 0 - everything is still.
+		//static int state = 0;		// 0 - everything is still.
 									// 3 - three wheels are turning
 									// 2 - two wheels are turning
 									// 1 - one wheels is turning
 
 		//static float debounce = time;
 
-		float halfTableLength = 10.0f; //TODO Modify according to the model
-		float halfTableWidth = 3.0f; //TODO Modify according to the model
-		float halfTableHeight = 0.05f;
-		float puckRadius = 1.0f; //TODO Modify according to the model
+		float halfTableLength = 1.7428f/2; //TODO Modify according to the model
+		float halfTableWidth = 0.451f; //TODO Modify according to the model
+		float halfWholeTableHeight = 0.05f;
+		float halfSideHeight = 0.018f;
+		float halfTableHeight = halfWholeTableHeight - halfSideHeight;
+		float puckRadius = 0.0574f/2; //TODO Modify according to the model
 
-		float paddleRadius = 2.0f; //TODO Modify according to the model
-		float paddleVelocity = 0.1f;
+		float paddleRadius = 0.0574f/2; //TODO Modify according to the model
+		float paddleVelocity = 0.0001f;
 
 		float scoreAreaLength = 1.0f; //TODO ^^
 
 		//Assumption: the table is centered in (0, 0)
 		static Point lPaddle = { -halfTableLength + paddleRadius, 0.0f, 0.0f, 0.0f };
 		static Point rPaddle = { halfTableLength - paddleRadius, 0.0f, 0.0f, 0.0f };
-		static Point puck = { 0.0f, -halfTableWidth + puckRadius, 0.0f, 0.0f };
+		static Point puck = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 		if (glfwGetKey(window, GLFW_KEY_SPACE)) { //START
 			/*if (time - debounce > 0.15) {  Does it actually make sense implemented this way?
 				debounce = time;*/
 			if (puck.vx == 0.0f && puck.vy == 0.0f) {
-				puck.vx = 2.0f; //TODO make it random outside a cone
-				puck.vy = 1.0f;
+				puck.vx = 0.00001f; //TODO make it random outside a cone
+				puck.vy = 0.0001f;
 			}
 		}
 
 		lPaddle.vx = 0.0f;
 		lPaddle.vy = 0.0f;
-		
-		if (glfwGetKey(window, GLFW_KEY_A) && /*TODO lPaddle not at the border*/) {
-			lPaddle.vx += paddleVelocity;
+		if (glfwGetKey(window, GLFW_KEY_A) && 1/*TODO lPaddle not at the border*/) {
+			lPaddle.vx -= paddleVelocity;
 		}
 
 		if (glfwGetKey(window, GLFW_KEY_D)) { //TODO same checks as above
@@ -279,7 +281,7 @@ class MyProject : public BaseProject {
 		rPaddle.vx = 0.0f;
 		rPaddle.vy = 0.0f;
 		if (glfwGetKey(window, GLFW_KEY_LEFT)) {  //TODO Same checks as above
-			rPaddle.vx += paddleVelocity;
+			rPaddle.vx -= paddleVelocity;
 		}
 
 		if (glfwGetKey(window, GLFW_KEY_RIGHT)) {
@@ -294,20 +296,24 @@ class MyProject : public BaseProject {
 			rPaddle.vy += paddleVelocity;
 		}
 
-		lPaddle.x = lPaddle.vx * dt;
-		lPaddle.y = lPaddle.vy * dt;
+		lPaddle.x += lPaddle.vx * dt;
+		lPaddle.y += lPaddle.vy * dt;
 		
-		rPaddle.x = rPaddle.vx * dt;
-		rPaddle.y = rPaddle.vy * dt;
+		rPaddle.x += rPaddle.vx * dt;
+		rPaddle.y += rPaddle.vy * dt;
 
 		//Check that paddles don't go outside the table
 
 		glm::vec2 normalVector;
 		//Each case has to be handled separately otherwise it's not possible to determine which normal vector has to be used
-		if (puck.y >= halfTableWidth - puckRadius) //UPPER SIDE
+		if (puck.y >= halfTableWidth - puckRadius) { //UPPER SIDE 
 			normalVector = glm::vec2(0.0f, 1.0f);
-		else if (puck.y <= -halfTableWidth + puckRadius) 
+			puck.vy *= -1; //TODO Quick trick to make it work now, generalize later
+		}
+		else if (puck.y <= -halfTableWidth + puckRadius) {
 			normalVector = glm::vec2(0.0f, -1.0f); //LOWER SIDE
+			puck.vy *= -1; //TODO ^^
+		}
 		//else if (/*curved pieces collision detected*/)
 		//else if (/*paddle collision detected */ ) 
 		
@@ -321,8 +327,8 @@ class MyProject : public BaseProject {
 		//if line was crossed
 			//reset state
 		//else update puck position
-			puck.x = puck.vx * dt;
-			puck.y = puck.vy * dt;
+			puck.x += puck.vx * dt;
+			puck.y += puck.vy * dt;
 
 
 		globalUniformBufferObject gubo{};
@@ -330,15 +336,15 @@ class MyProject : public BaseProject {
 				
 		void* data;
 
-		float cameraHeight = 3.0f;
+		float cameraHeight = 1.0f;
 		glm::mat4 viewMatrices[NUM_VIEWS] = {
 			glm::lookAt(glm::vec3(0.0f, 3.0f, 1.0f), //Center
 						glm::vec3(0.0f, halfTableHeight, 0.0f),
 						glm::vec3(0.0f, 1.0f, 0.0f)),
-			glm::lookAt(glm::vec3(-halfTableLength - 1.0f, cameraHeight, 0.0f), //Left player
+			glm::lookAt(glm::vec3(-halfTableLength - 0.7f, cameraHeight, 0.0f), //Left player
 						glm::vec3(0.0f, halfTableHeight, 0.0f),
 						glm::vec3(0.0f, 1.0f, 0.0f)),
-			glm::lookAt(glm::vec3(halfTableLength + 1.0f, cameraHeight, 0.0f), //Right player
+			glm::lookAt(glm::vec3(halfTableLength + 0.7f, cameraHeight, 0.0f), //Right player
 						glm::vec3(0.0f, halfTableHeight, 0.0f),
 						glm::vec3(0.0f, 1.0f, 0.0f))
 
@@ -369,7 +375,7 @@ class MyProject : public BaseProject {
 
 		// For the Puck
 		const float halfPuckHeight = 0.1f; //TODO Sync with model
-		ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(puck.x, halfTableHeight + halfPuckHeight , puck.y));
+		ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(puck.x, 0.0f , puck.y));
 					
 		vkMapMemory(device, DS_Puck.uniformBuffersMemory[0][currentImage], 0,
 							sizeof(ubo), 0, &data);
@@ -378,7 +384,7 @@ class MyProject : public BaseProject {
 
 		// For the lPaddle
 		const float halfPaddleHeight = 0.1f;
-		ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(lPaddle.x, halfTableHeight + halfPaddleHeight, lPaddle.y));
+		ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(lPaddle.x, 0.0f, lPaddle.y));
 					
 		vkMapMemory(device, DS_LeftPaddle.uniformBuffersMemory[0][currentImage], 0,
 							sizeof(ubo), 0, &data);
@@ -386,7 +392,7 @@ class MyProject : public BaseProject {
 		vkUnmapMemory(device, DS_LeftPaddle.uniformBuffersMemory[0][currentImage]);
 
 		// For the rPaddle
-		ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(rPaddle.x, halfTableHeight + halfPaddleHeight, rPaddle.y));
+		ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(rPaddle.x, 0.0f, rPaddle.y));
 					
 		vkMapMemory(device, DS_RightPaddle.uniformBuffersMemory[0][currentImage], 0,
 							sizeof(ubo), 0, &data);

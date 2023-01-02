@@ -1460,7 +1460,7 @@ protected:
 		vkDestroySurfaceKHR(instance, surface, nullptr);
     	vkDestroyInstance(instance, nullptr);
 
-        glfwDestroyWindow(window);
+		glfwDestroyWindow(window);
 
         glfwTerminate();
     }
