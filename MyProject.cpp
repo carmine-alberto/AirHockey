@@ -3,6 +3,7 @@
 #include "MyProject.hpp"
 
 #define NUM_VIEWS 3
+#define NUM_CORNERS 4
 
 // The uniform buffer object used in this example
 struct globalUniformBufferObject {
@@ -88,7 +89,7 @@ class MyProject : public BaseProject {
 
 		// Models, textures and Descriptors (values assigned to the uniforms)
 		M_Table.init(this, "models/table.obj");
-		T_Table.init(this, "textures/airhockey-background.png");
+		T_Table.init(this, "textures/airHockey3.png");
 		DS_Table.init(this, &DSLobj, {
 		// the second parameter, is a pointer to the Uniform Set Layout of this set
 		// the last parameter is an array, with one element per binding of the set.
@@ -239,12 +240,22 @@ class MyProject : public BaseProject {
 		float halfWholeTableHeight = 0.05f;
 		float halfSideHeight = 0.018f;
 		float halfTableHeight = halfWholeTableHeight - halfSideHeight;
+		
+		float cornerCircleRadius = halfTableWidth / 2;
+		Point cornersCirclesCenters[NUM_CORNERS] = {
+			{ -halfTableLength + cornerCircleRadius, -cornerCircleRadius }, //LEFT -> TOP
+			{ -halfTableLength + cornerCircleRadius, cornerCircleRadius }, //		-> BOTTOM
+			{ halfTableLength - cornerCircleRadius, -cornerCircleRadius }, //RIGHT -> TOP
+			{ halfTableLength - cornerCircleRadius, cornerCircleRadius } //		-> BOTTOM
+		};
+		enum { LT, LB, RT, RB };
+		
 		float puckRadius = 0.0574f/2; //TODO Modify according to the model
 
 		float paddleRadius = 0.0574f/2; //TODO Modify according to the model
 		float paddleVelocity = 0.0001f;
 
-		float scoreAreaLength = 1.0f; //TODO ^^
+		float scoreAreaX = 0.4f; //TODO ^^
 
 		//Assumption: the table is centered in (0, 0)
 		static Point lPaddle = { -halfTableLength + paddleRadius, 0.0f, 0.0f, 0.0f };
@@ -262,7 +273,7 @@ class MyProject : public BaseProject {
 
 		lPaddle.vx = 0.0f;
 		lPaddle.vy = 0.0f;
-		if (glfwGetKey(window, GLFW_KEY_A) && 1/*TODO lPaddle not at the border*/) {
+		if (glfwGetKey(window, GLFW_KEY_A) /*TODO lPaddle not at the border*/) {
 			lPaddle.vx -= paddleVelocity;
 		}
 
@@ -296,13 +307,81 @@ class MyProject : public BaseProject {
 			rPaddle.vy += paddleVelocity;
 		}
 
-		lPaddle.x += lPaddle.vx * dt;
-		lPaddle.y += lPaddle.vy * dt;
 		
-		rPaddle.x += rPaddle.vx * dt;
-		rPaddle.y += rPaddle.vy * dt;
+		float tempPosition;
+		bool update = false;
+		
+		//TODO Refactor into single function
+		tempPosition = lPaddle.x + lPaddle.vx * dt;
+		if (tempPosition + paddleRadius <= -scoreAreaX) {
+			if (abs(lPaddle.y) > cornerCircleRadius) {//LT, LR
+				float relativeX = abs(tempPosition) - abs(cornersCirclesCenters[LT].x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
+				float relativeY = abs(lPaddle.y) - cornerCircleRadius;
+				float maxRelativeX = sqrt(pow((cornerCircleRadius - paddleRadius), 2) - pow(relativeY, 2));
+				if (relativeX <= maxRelativeX)
+					update = true;
+			}
+			else 
+				if (tempPosition - paddleRadius >= -halfTableLength)
+					update = true;
+		}
+		if (update) {
+			lPaddle.x = tempPosition;
+			update = false;
+		}
 
-		//Check that paddles don't go outside the table
+		tempPosition = lPaddle.y + lPaddle.vy * dt;
+		if (abs(tempPosition) + paddleRadius <= halfTableWidth) {
+			if (abs(lPaddle.x) > abs(cornersCirclesCenters[LT].x)) {//LT, LR
+				float relativeX = abs(lPaddle.x) - abs(cornersCirclesCenters[LT].x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
+				float relativeY = abs(tempPosition) - cornerCircleRadius;
+				float maxRelativeY = sqrt(pow((cornerCircleRadius - paddleRadius), 2) - pow(relativeX, 2));
+				if (relativeY <= maxRelativeY)
+					update = true;
+			}
+			else //TODO generalize if above using the absolute values of the quantities involved
+				update = true;
+		}
+		if (update) {
+			lPaddle.y = tempPosition;
+			update = false;
+		}
+		
+		
+		tempPosition = rPaddle.x + rPaddle.vx * dt;
+		if (tempPosition - paddleRadius >= scoreAreaX) {
+			if (abs(rPaddle.y) > cornerCircleRadius) {//RT, RB
+				float relativeX = abs(tempPosition) - abs(cornersCirclesCenters[RT].x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
+				float relativeY = abs(rPaddle.y) - cornerCircleRadius;
+				float maxRelativeX = sqrt(pow((cornerCircleRadius - paddleRadius), 2) - pow(relativeY, 2));
+				if (relativeX <= maxRelativeX)
+					update = true;
+			}
+			else 
+				if (tempPosition + paddleRadius <= halfTableLength)
+					update = true;
+		}
+		if (update) {
+			rPaddle.x = tempPosition;
+			update = false;
+		}
+
+		tempPosition = rPaddle.y + rPaddle.vy * dt;
+		if (abs(tempPosition) + paddleRadius <= halfTableWidth) {
+			if (abs(rPaddle.x) > abs(cornersCirclesCenters[RT].x)) {//RT, RB
+				float relativeX = abs(rPaddle.x) - abs(cornersCirclesCenters[RT].x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
+				float relativeY = abs(tempPosition) - cornerCircleRadius;
+				float maxRelativeY = sqrt(pow((cornerCircleRadius - paddleRadius), 2) - pow(relativeX, 2));
+				if (relativeY <= maxRelativeY)
+					update = true;
+			}
+			else //TODO generalize if above using the absolute values of the quantities involved
+				update = true;
+		}
+		if (update)
+			rPaddle.y = tempPosition;
+		
+
 
 		glm::vec2 normalVector;
 		//Each case has to be handled separately otherwise it's not possible to determine which normal vector has to be used
