@@ -223,8 +223,8 @@ class MyProject : public BaseProject {
 	void updateUniformBuffer(uint32_t currentImage) {
 		static auto lastTime = std::chrono::high_resolution_clock::now();
 		auto currentTime = std::chrono::high_resolution_clock::now();
-		float dt = std::chrono::duration<float, std::chrono::seconds::period>
-			(currentTime - lastTime).count();
+		float dt = 0.01f;/*std::chrono::duration<float, std::chrono::seconds::period>
+			(currentTime - lastTime).count();*/
 
 		//WTF is (*was) going on here with the time handling?
 
@@ -242,7 +242,7 @@ class MyProject : public BaseProject {
 		float halfTableHeight = halfWholeTableHeight - halfSideHeight;
 		
 		float cornerCircleRadius = halfTableWidth / 2;
-		Point cornersCirclesCenters[NUM_CORNERS] = {
+		Point cornersCirclesCenters[NUM_CORNERS] = { //TODO Using modulus, I have a hunch we don't actually need 4 cases. Not really used so far
 			{ -halfTableLength + cornerCircleRadius, -cornerCircleRadius }, //LEFT -> TOP
 			{ -halfTableLength + cornerCircleRadius, cornerCircleRadius }, //		-> BOTTOM
 			{ halfTableLength - cornerCircleRadius, -cornerCircleRadius }, //RIGHT -> TOP
@@ -253,7 +253,7 @@ class MyProject : public BaseProject {
 		float puckRadius = 0.0574f/2; //TODO Modify according to the model
 
 		float paddleRadius = 0.0574f/2; //TODO Modify according to the model
-		float paddleVelocity = 0.0001f;
+		float paddleVelocity = 0.1f;
 
 		float scoreAreaX = 0.4f; //TODO ^^
 
@@ -266,9 +266,25 @@ class MyProject : public BaseProject {
 			/*if (time - debounce > 0.15) {  Does it actually make sense implemented this way?
 				debounce = time;*/
 			if (puck.vx == 0.0f && puck.vy == 0.0f) {
-				puck.vx = 0.00001f; //TODO make it random outside a cone
-				puck.vy = 0.0001f;
+				puck.vx = 0.3f; //TODO make it random outside a cone
+				puck.vy = 0.5f;
 			}
+		}
+		if (glfwGetKey(window, GLFW_KEY_F)) {
+			puck.vx /= 1.2;
+			puck.vy /= 1.2;
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_R)) {
+			puck.vx *= 1.2;
+			puck.vy *= 1.2;
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_T)) { //Test setting
+			puck.x = halfTableLength - puckRadius - 0.2f;
+			puck.y = halfTableWidth - puckRadius - 0.2f;
+			puck.vx = 0.03f;
+			puck.vy = 0.05f;
 		}
 
 		lPaddle.vx = 0.0f;
@@ -383,16 +399,33 @@ class MyProject : public BaseProject {
 		
 
 
-		glm::vec2 normalVector;
+		glm::vec2 normalVector = glm::vec2(0.0f, 0.0f);
+		
+		
+		//Corner collision detection code
+		
+		float relativeX = abs(puck.x) - abs(cornersCirclesCenters[LT].x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
+		float relativeY = abs(puck.y) - cornerCircleRadius;
+		if (relativeX > 0 && relativeY > 0) {
+			float relativeRadius = cornerCircleRadius - puckRadius;
+			if (pow(relativeX, 2) + pow(relativeY, 2) >= pow(relativeRadius, 2))
+				normalVector = glm::normalize(glm::vec2(
+					relativeX * ((puck.x < 0) ? 1.0f : -1.0f), //If this parentheses are removed after *, it breaks down awfully. What does it get assigned exactly x) ?
+					relativeY * ((puck.y < 0) ? 1.0f : -1.0f)
+				));
+		}
+				
+			
+
 		//Each case has to be handled separately otherwise it's not possible to determine which normal vector has to be used
-		if (puck.y >= halfTableWidth - puckRadius) { //UPPER SIDE 
+		if (puck.y >= halfTableWidth - puckRadius)  //UPPER SIDE 
 			normalVector = glm::vec2(0.0f, 1.0f);
-			puck.vy *= -1; //TODO Quick trick to make it work now, generalize later
-		}
-		else if (puck.y <= -halfTableWidth + puckRadius) {
+		else if (puck.y <= -halfTableWidth + puckRadius) 
 			normalVector = glm::vec2(0.0f, -1.0f); //LOWER SIDE
-			puck.vy *= -1; //TODO ^^
-		}
+		else if (puck.x <= -halfTableLength + puckRadius) 
+			normalVector = glm::vec2(1.0f, 0.0f); //LEFT SIDE
+		else if (puck.x >= halfTableLength - puckRadius) 
+			normalVector = glm::vec2(-1.0f, 0.0f); //RIGHT SIDE
 		//else if (/*curved pieces collision detected*/)
 		//else if (/*paddle collision detected */ ) 
 		
@@ -401,7 +434,21 @@ class MyProject : public BaseProject {
 		//Dot product with normal, 2*result - initial normalized vector, times M
 
 		//Handle case where nothing changes: setting a default normal and checking it probably the cheapest way?
+
+		if (glm::length(normalVector) != 0.0f /* && glm::length(normalVector) < 1.001f - now working*/) {
+			glm::vec2 flippedPuckVel = glm::vec2(-puck.vx, -puck.vy);
+			float velProjectionModulus = dot(flippedPuckVel, normalVector); //Flip puck.v, as in Phong
+			glm::vec2 velProjection = glm::vec2(normalVector * velProjectionModulus);
+
+			glm::vec2 finalVelocity = glm::vec2(
+				2.0f * velProjection - flippedPuckVel
+			);
+
+			puck.vx = finalVelocity.x;
+			puck.vy = finalVelocity.y;
 			
+		}
+
 		
 		//if line was crossed
 			//reset state
@@ -420,10 +467,10 @@ class MyProject : public BaseProject {
 			glm::lookAt(glm::vec3(0.0f, 3.0f, 1.0f), //Center
 						glm::vec3(0.0f, halfTableHeight, 0.0f),
 						glm::vec3(0.0f, 1.0f, 0.0f)),
-			glm::lookAt(glm::vec3(-halfTableLength - 0.7f, cameraHeight, 0.0f), //Left player
+			glm::lookAt(glm::vec3(-halfTableLength - 0.8f, cameraHeight, 0.0f), //Left player
 						glm::vec3(0.0f, halfTableHeight, 0.0f),
 						glm::vec3(0.0f, 1.0f, 0.0f)),
-			glm::lookAt(glm::vec3(halfTableLength + 0.7f, cameraHeight, 0.0f), //Right player
+			glm::lookAt(glm::vec3(halfTableLength + 0.8f, cameraHeight, 0.0f), //Right player
 						glm::vec3(0.0f, halfTableHeight, 0.0f),
 						glm::vec3(0.0f, 1.0f, 0.0f))
 
