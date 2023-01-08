@@ -221,9 +221,10 @@ class MyProject : public BaseProject {
 	// Here is where you update the uniforms.
 	// Very likely this will be where you will be writing the logic of your application.
 	void updateUniformBuffer(uint32_t currentImage) {
-		static auto lastTime = std::chrono::high_resolution_clock::now();
-		auto currentTime = std::chrono::high_resolution_clock::now();
-		float dt = 0.01f;/*std::chrono::duration<float, std::chrono::seconds::period>
+		static std::chrono::time_point<std::chrono::system_clock> lastTime = std::chrono::system_clock::now();
+		static std::chrono::time_point<std::chrono::system_clock> debounceTime = std::chrono::system_clock::now();
+		std::chrono::time_point<std::chrono::system_clock> currentTime = std::chrono::system_clock::now();
+		float dt = 0.01f;/* std::chrono::duration<float, std::chrono::seconds::period>
 			(currentTime - lastTime).count();*/
 
 		//WTF is (*was) going on here with the time handling?
@@ -252,8 +253,8 @@ class MyProject : public BaseProject {
 		
 		float puckRadius = 0.0574f/2; //TODO Modify according to the model
 
-		float paddleRadius = 0.0574f/2; //TODO Modify according to the model
-		float paddleVelocity = 0.1f;
+		float paddleRadius = 0.07; //TODO Modify according to the model
+		float paddleVelocity = 0.2f;
 
 		float scoreAreaX = 0.4f; //TODO ^^
 
@@ -400,34 +401,52 @@ class MyProject : public BaseProject {
 
 
 		glm::vec2 normalVector = glm::vec2(0.0f, 0.0f);
+		std::chrono::duration<float> debounceInterval = (currentTime - debounceTime);
+		//Corner collision detection code - TODO Replace else if cascade with function call that returns normalVector
 		
-		
-		//Corner collision detection code
-		
-		float relativeX = abs(puck.x) - abs(cornersCirclesCenters[LT].x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
-		float relativeY = abs(puck.y) - cornerCircleRadius;
-		if (relativeX > 0 && relativeY > 0) {
-			float relativeRadius = cornerCircleRadius - puckRadius;
-			if (pow(relativeX, 2) + pow(relativeY, 2) >= pow(relativeRadius, 2))
+
+		if (debounceInterval.count() > 0.05f) {
+			float relativeX = abs(puck.x) - abs(cornersCirclesCenters[LT].x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
+			float relativeY = abs(puck.y) - cornerCircleRadius;
+			const float relativeRadius = cornerCircleRadius - puckRadius;
+
+			if (relativeX > 0 &&
+				relativeY > 0 &&
+				(pow(relativeX, 2) + pow(relativeY, 2) >= pow(relativeRadius, 2)))
 				normalVector = glm::normalize(glm::vec2(
 					relativeX * ((puck.x < 0) ? 1.0f : -1.0f), //If this parentheses are removed after *, it breaks down awfully. What does it get assigned exactly x) ?
 					relativeY * ((puck.y < 0) ? 1.0f : -1.0f)
 				));
-		}
-				
-			
 
-		//Each case has to be handled separately otherwise it's not possible to determine which normal vector has to be used
-		if (puck.y >= halfTableWidth - puckRadius)  //UPPER SIDE 
-			normalVector = glm::vec2(0.0f, 1.0f);
-		else if (puck.y <= -halfTableWidth + puckRadius) 
-			normalVector = glm::vec2(0.0f, -1.0f); //LOWER SIDE
-		else if (puck.x <= -halfTableLength + puckRadius) 
-			normalVector = glm::vec2(1.0f, 0.0f); //LEFT SIDE
-		else if (puck.x >= halfTableLength - puckRadius) 
-			normalVector = glm::vec2(-1.0f, 0.0f); //RIGHT SIDE
-		//else if (/*curved pieces collision detected*/)
-		//else if (/*paddle collision detected */ ) 
+			//Each case has to be handled separately otherwise it's not possible to determine which normal vector has to be used
+			else if (puck.y >= halfTableWidth - puckRadius)  //UPPER SIDE 
+				normalVector = glm::vec2(0.0f, 1.0f);
+			else if (puck.y <= -halfTableWidth + puckRadius)
+				normalVector = glm::vec2(0.0f, -1.0f); //LOWER SIDE
+			else if (puck.x <= -halfTableLength + puckRadius)
+				normalVector = glm::vec2(1.0f, 0.0f); //LEFT SIDE
+			else if (puck.x >= halfTableLength - puckRadius)
+				normalVector = glm::vec2(-1.0f, 0.0f); //RIGHT SIDE
+			else {
+				const float puckPaddleMinDistance = paddleRadius + puckRadius;
+				float puckLeftPaddleDistanceX = puck.x - lPaddle.x;
+				float puckLeftPaddleDistanceY = puck.y - lPaddle.y;
+
+				float puckRightPaddleDistanceX = puck.x - rPaddle.x;
+				float puckRightPaddleDistanceY = puck.y - rPaddle.y;
+
+				if (pow(puckLeftPaddleDistanceX, 2) + pow(puckLeftPaddleDistanceY, 2) <= pow(puckPaddleMinDistance, 2))
+					normalVector = glm::normalize(glm::vec2(
+						puckLeftPaddleDistanceX, //correct sign included in the distances calculated above
+						puckLeftPaddleDistanceY
+					));
+				else if (pow(puckRightPaddleDistanceX, 2) + pow(puckRightPaddleDistanceY, 2) <= pow(puckPaddleMinDistance, 2))
+					normalVector = glm::normalize(glm::vec2(
+						puckRightPaddleDistanceX, //correct sign included in the distances calculated above
+						puckRightPaddleDistanceY
+					));
+			}
+		}
 		
 		//Calculate new vx, vy using the normal vector as done in the Phong model:
 		//Normalize v, flip it (-1) and extract the modulus -> If defined separately at 266 (M * component), modulus is given  --> UPDATE: Normalization not required if normal is provided normalized (or is normalized below)
@@ -446,6 +465,8 @@ class MyProject : public BaseProject {
 
 			puck.vx = finalVelocity.x;
 			puck.vy = finalVelocity.y;
+
+			debounceTime = currentTime;
 			
 		}
 
@@ -525,6 +546,7 @@ class MyProject : public BaseProject {
 		memcpy(data, &ubo, sizeof(ubo));
 		vkUnmapMemory(device, DS_RightPaddle.uniformBuffersMemory[0][currentImage]);
 
+		lastTime = currentTime;
 	}	
 };
 
