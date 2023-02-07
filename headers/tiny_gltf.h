@@ -68,6 +68,10 @@
 #include <functional>
 #endif
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/hash.hpp>
+
+
 #ifdef __ANDROID__
 #ifdef TINYGLTF_ANDROID_LOAD_FROM_ASSETS
 #include <android/asset_manager.h>
