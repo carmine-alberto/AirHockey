@@ -34,6 +34,7 @@ class MyProject : public BaseProject {
 
 	// Pipelines [Shader couples]
 	Pipeline P1;
+	Pipeline P2;
 
 	// Models, textures and Descriptors (values assigned to the uniforms)
 	Model M_Table;
@@ -61,9 +62,9 @@ class MyProject : public BaseProject {
 		initialBackgroundColor = {0.0f, 0.5f, 0.0f, 1.0f};
 		
 		// Descriptor pool sizes
-		uniformBlocksInPool = 6;
-		texturesInPool = 5;
-		setsInPool = 6;
+		uniformBlocksInPool = 10;
+		texturesInPool = 10;
+		setsInPool = 10;
 	}
 	
 	// Here you load and setup all your Vulkan objects
@@ -89,7 +90,7 @@ class MyProject : public BaseProject {
 
 		// Models, textures and Descriptors (values assigned to the uniforms)
 		M_Table.init(this, "models/table.obj");
-		T_Table.init(this, "textures/airHockey3.png");
+		T_Table.init(this, "textures/airhockey-background.png");
 		DS_Table.init(this, &DSLobj, {
 		// the second parameter, is a pointer to the Uniform Set Layout of this set
 		// the last parameter is an array, with one element per binding of the set.
@@ -100,17 +101,11 @@ class MyProject : public BaseProject {
 					{0, UNIFORM, sizeof(UniformBufferObject), nullptr},
 					{1, TEXTURE, 0, &T_Table}
 				});
-		
-		M_Puck.init(this, "models/disk.obj");
-		T_Puck.init(this, "textures/puck.png");
-		DS_Puck.init(this, &DSLobj, {
-					{0, UNIFORM, sizeof(UniformBufferObject), nullptr},
-					{1, TEXTURE, 0, &T_Puck}
-				});
 
 
 		M_Paddle.init(this, "models/disk.obj"); //TODO Rename
 		T_Paddle.init(this, "textures/paddle.png");
+
 		DS_LeftPaddle.init(this, &DSLobj, {
 					{0, UNIFORM, sizeof(UniformBufferObject), nullptr},
 					{1, TEXTURE, 0, &T_Paddle}
@@ -121,7 +116,12 @@ class MyProject : public BaseProject {
 				});
 
 
-
+		M_Puck.init(this, "models/disk.obj");
+		T_Puck.init(this, "textures/puck.png");
+		DS_Puck.init(this, &DSLobj, {
+					{0, UNIFORM, sizeof(UniformBufferObject), nullptr},
+					{1, TEXTURE, 0, &T_Puck}
+			});
 
 		DS_global.init(this, &DSLglobal, {
 					{0, UNIFORM, sizeof(globalUniformBufferObject), nullptr}
@@ -188,10 +188,13 @@ class MyProject : public BaseProject {
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers2, offsets2);
 		vkCmdBindIndexBuffer(commandBuffer, M_Puck.indexBuffer, 0,
 								VK_INDEX_TYPE_UINT32);
-		vkCmdBindDescriptorSets(commandBuffer,
-						VK_PIPELINE_BIND_POINT_GRAPHICS,
-						P1.pipelineLayout, 1, 1, &DS_Puck.descriptorSets[currentImage],
-						0, nullptr);
+
+			vkCmdBindDescriptorSets(commandBuffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS,
+					P1.pipelineLayout, 1, 1, &DS_Puck.descriptorSets[currentImage],
+					0, nullptr);
+	
+
 		vkCmdDrawIndexed(commandBuffer,
 					static_cast<uint32_t>(M_Puck.indices.size()), 1, 0, 0, 0);
 
@@ -215,7 +218,7 @@ class MyProject : public BaseProject {
 						0, nullptr);
 		vkCmdDrawIndexed(commandBuffer,
 					static_cast<uint32_t>(M_Paddle.indices.size()), 1, 0, 0, 0);
-
+		
 	}
 
 	// Here is where you update the uniforms.
@@ -227,7 +230,7 @@ class MyProject : public BaseProject {
 		float dt = 0.01f;/* std::chrono::duration<float, std::chrono::seconds::period>
 			(currentTime - lastTime).count();*/
 
-		//WTF is (*was) going on here with the time handling?
+		
 
 		//static int state = 0;		// 0 - everything is still.
 									// 3 - three wheels are turning
@@ -249,6 +252,7 @@ class MyProject : public BaseProject {
 			{ halfTableLength - cornerCircleRadius, -cornerCircleRadius }, //RIGHT -> TOP
 			{ halfTableLength - cornerCircleRadius, cornerCircleRadius } //		-> BOTTOM
 		};
+
 		enum { LT, LB, RT, RB };
 		
 		float puckRadius = 0.0574f/2; //TODO Modify according to the model
@@ -446,6 +450,8 @@ class MyProject : public BaseProject {
 						puckRightPaddleDistanceY
 					));
 			}
+			//IMPORTANT ASSUMPTION: paddle velocity is always lower than puck velocity. Otherwise, if the paddle moved in the direction of the puck velocity, 
+			//compenetration would occur, debouncing time could expire and a second collision could be triggered
 		}
 		
 		//Calculate new vx, vy using the normal vector as done in the Phong model:

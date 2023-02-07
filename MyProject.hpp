@@ -964,7 +964,7 @@ protected:
 		imageInfo.extent.height = height;
 		imageInfo.extent.depth = 1;
 		imageInfo.mipLevels = mipLevels;
-		imageInfo.arrayLayers = 1;
+		imageInfo.arrayLayers = 1; //TODO make parametric for skybox (1-6)
 		imageInfo.format = format;
 		imageInfo.tiling = tiling;
 		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -1815,7 +1815,7 @@ void Pipeline::init(BaseProject *bp, const std::string& VertShader, const std::s
 			VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 	depthStencil.depthTestEnable = VK_TRUE;
 	depthStencil.depthWriteEnable = VK_TRUE;
-	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS; //TODO Change to accept it as a parameter, SkyBox requires LESS_OR_EQUAL
 	depthStencil.depthBoundsTestEnable = VK_FALSE;
 	depthStencil.minDepthBounds = 0.0f; // Optional
 	depthStencil.maxDepthBounds = 1.0f; // Optional
