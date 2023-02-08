@@ -5,7 +5,7 @@
 #define NUM_VIEWS 4
 #define NUM_CORNERS 4
 
-const std::string SKYBOX_TEXTURE[6] = { "textures/skybox/negx.jpg", "textures/skybox/negy.jpg", "textures/skybox/negz.jpg", "textures/skybox/posx.jpg", "textures/skybox/posy.jpg", "textures/skybox/posz.jpg" };
+//const std::string SKYBOX_TEXTURE[6] = { "textures/skybox/negx.jpg", "textures/skybox/negy.jpg", "textures/skybox/negz.jpg", "textures/skybox/posx.jpg", "textures/skybox/posy.jpg", "textures/skybox/posz.jpg" }; TODO Fix or remove
   
 
 // The uniform buffer object used in this example
@@ -81,7 +81,8 @@ class MyProject : public BaseProject {
 
     //Paddle
     Model M_Paddle;
-    Texture T_Paddle;
+    Texture T_LeftPaddle;
+    Texture T_RightPaddle;
     DescriptorSet DS_LeftPaddle;    // instance DSLobj
     DescriptorSet DS_RightPaddle;    // instance DSLobj
 
@@ -90,8 +91,7 @@ class MyProject : public BaseProject {
     Texture T_StartScreen;
     DescriptorSet DS_StartScreen;
     
-    
-    
+
     DescriptorSet DS_global;
 
 	
@@ -147,22 +147,23 @@ class MyProject : public BaseProject {
     
         //Puck
         M_Puck.init(this, "models/disk.obj");
-        T_Puck.init(this, "textures/puck.png");
+        T_Puck.init(this, "textures/disk.png");
         DS_Puck.init(this, &DSLobj, {
                     {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
                     {1, TEXTURE, 0, &T_Puck}
                 });
 
         //Paddle
-        M_Paddle.init(this, "models/disk.obj"); //TODO Rename
-        T_Paddle.init(this, "textures/paddle.png");
+        M_Paddle.init(this, "models/paddle.obj"); //TODO Rename
+        T_LeftPaddle.init(this, "textures/paddleLeft.png");
         DS_LeftPaddle.init(this, &DSLobj, {
                     {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
-                    {1, TEXTURE, 0, &T_Paddle}
+                    {1, TEXTURE, 0, &T_LeftPaddle}
                 });
+        T_RightPaddle.init(this, "textures/paddleRight.png");
         DS_RightPaddle.init(this, &DSLobj, {
                     {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
-                    {1, TEXTURE, 0, &T_Paddle}
+                    {1, TEXTURE, 0, &T_RightPaddle}
                 });
 
         //Sky Box
@@ -210,7 +211,8 @@ class MyProject : public BaseProject {
         DS_LeftPaddle.cleanup();
         DS_RightPaddle.cleanup();
         M_Paddle.cleanup();
-        T_Paddle.cleanup();
+        T_LeftPaddle.cleanup();
+        T_RightPaddle.cleanup();
         
         //Start Screen
         M_StartScreen.cleanup();
@@ -239,7 +241,7 @@ class MyProject : public BaseProject {
                         P1.pipelineLayout, 0, 1, &DS_global.descriptorSets[currentImage],
                         0, nullptr);
         
-        
+    
         
        
         VkBuffer vertexBuffers[] = {M_Table.vertexBuffer};
@@ -323,10 +325,6 @@ class MyProject : public BaseProject {
                         0, nullptr);
         vkCmdDrawIndexed(commandBuffer,
                     static_cast<uint32_t>(M_Paddle.indices.size()), 1, 0, 0, 0);
-        
-        
-        
-       
       
 
     }
@@ -620,8 +618,7 @@ class MyProject : public BaseProject {
         gubo.spotPosition1 = glm::vec3(-0.7f, 1.0f, 0.2f);
         gubo.spotPosition2 = glm::vec3(-0.7f, 1.0f, -0.2f);
         gubo.spotPosition3 = glm::vec3(0.7f, 1.0f, 0.2f);
-        gubo.spotPosition4 = glm::vec3(0.7f, 1.0f, -0.2f);
-                       
+        gubo.spotPosition4 = glm::vec3(0.7f, 1.0f, -0.2f);             
         gubo.spotPosition5 = glm::vec3(-0.2f, 1.0f, 0.2f);
         gubo.spotPosition6 = glm::vec3(-0.2f, 1.0f, -0.2f);
         gubo.spotPosition7 = glm::vec3(0.2f, 1.0f, 0.2f);

@@ -987,7 +987,7 @@ protected:
         imageInfo.extent.height = height;
         imageInfo.extent.depth = 1;
         imageInfo.mipLevels = mipLevels;
-        imageInfo.arrayLayers = 1 //TODO Make parametric for Skybox Cube
+        imageInfo.arrayLayers = 1; //TODO Make parametric for Skybox Cube
         imageInfo.format = format;
         imageInfo.tiling = tiling;
         imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
