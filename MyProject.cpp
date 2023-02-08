@@ -2,8 +2,9 @@
 
 #include "MyProject.hpp"
 
-#define NUM_VIEWS 4
+#define NUM_VIEWS 3
 #define NUM_CORNERS 4
+#define GOAL_SCORE 7
 
 //const std::string SKYBOX_TEXTURE[6] = { "textures/skybox/negx.jpg", "textures/skybox/negy.jpg", "textures/skybox/negz.jpg", "textures/skybox/posx.jpg", "textures/skybox/posy.jpg", "textures/skybox/posz.jpg" }; TODO Fix or remove
   
@@ -91,8 +92,10 @@ class MyProject : public BaseProject {
     Texture T_StartScreen;
     DescriptorSet DS_StartScreen;
     
-
     DescriptorSet DS_global;
+
+    int leftPlayerScore = 0;
+    int rightPlayerScore = 0;
 
 	
 	// Here you set the main application parameters
@@ -375,33 +378,43 @@ class MyProject : public BaseProject {
         static Point puck = { 0.0f, 0.0f, 0.0f, 0.0f };
 
         if (glfwGetKey(window, GLFW_KEY_SPACE)) { //START
-            /*if (time - debounce > 0.15) {  Does it actually make sense implemented this way?
-                debounce = time;*/
             if (puck.vx == 0.0f && puck.vy == 0.0f) {
-                puck.vx = 0.3f; //TODO make it random outside a cone
-                puck.vy = 0.5f;
+                puck.vx = 0.4f; //TODO make it random outside a cone
+                puck.vy = 0.6f;
             }
         }
-        if (glfwGetKey(window, GLFW_KEY_F)) {
-            puck.vx /= 1.2;
-            puck.vy /= 1.2;
+
+        enum {EASY, NORMAL, HARD};
+        static int difficulty = NORMAL;
+
+        if (glfwGetKey(window, GLFW_KEY_F) && difficulty != EASY) { //TODO Use to set difficulty - fixed amounts
+            puck.vx /= 1.4 ;
+            puck.vy /= 1.4;
+            if (difficulty == NORMAL)
+                difficulty = EASY;
+            else
+                difficulty = NORMAL;
         }
 
-        if (glfwGetKey(window, GLFW_KEY_R)) {
-            puck.vx *= 1.2;
-            puck.vy *= 1.2;
+        if (glfwGetKey(window, GLFW_KEY_R) && difficulty != HARD) {
+            puck.vx *= 1.4;
+            puck.vy *= 1.4;
+            if (difficulty == NORMAL)
+                difficulty = HARD;
+            else
+                difficulty = NORMAL;
         }
 
         if (glfwGetKey(window, GLFW_KEY_T)) { //Test setting
             puck.x = halfTableLength - puckRadius - 0.2f;
             puck.y = halfTableWidth - puckRadius - 0.2f;
-            puck.vx = 0.03f;
-            puck.vy = 0.05f;
+            puck.vx = 0.3f;
+            puck.vy = 0.6f;
         }
 
         lPaddle.vx = 0.0f;
         lPaddle.vy = 0.0f;
-        if (glfwGetKey(window, GLFW_KEY_A) /*TODO lPaddle not at the border*/) {
+        if (glfwGetKey(window, GLFW_KEY_A) /*TODO lPaddle not at the border*/) { //TODO Change according to view
             lPaddle.vx -= paddleVelocity;
         }
 
@@ -534,10 +547,12 @@ class MyProject : public BaseProject {
                 normalVector = glm::vec2(0.0f, 1.0f);
             else if (puck.y <= -halfTableWidth + puckRadius)
                 normalVector = glm::vec2(0.0f, -1.0f); //LOWER SIDE
+            /* TODO Handle these cases - hit on edges
             else if (puck.x <= -halfTableLength + puckRadius)
                 normalVector = glm::vec2(1.0f, 0.0f); //LEFT SIDE
             else if (puck.x >= halfTableLength - puckRadius)
                 normalVector = glm::vec2(-1.0f, 0.0f); //RIGHT SIDE
+                */
             else {
                 const float puckPaddleMinDistance = paddleRadius + puckRadius;
                 float puckLeftPaddleDistanceX = puck.x - lPaddle.x;
@@ -583,12 +598,36 @@ class MyProject : public BaseProject {
             
         }
 
-        
-        //if line was crossed
-            //reset state
-        //else update puck position
-            puck.x += puck.vx * dt;
-            puck.y += puck.vy * dt;
+        puck.x += puck.vx * dt;
+        puck.y += puck.vy * dt;
+
+        if (puck.x <= -halfTableLength) {
+            rightPlayerScore++;
+            //resetGameState();
+            puck.x = 0.0f;
+            puck.y = 0.0f;
+
+            puck.vx = 0.3f;
+            puck.vy = 0.6f;
+        } else if(puck.x >= halfTableLength) {
+            leftPlayerScore++;
+            //resetGameState();
+            puck.x = 0.0f;
+            puck.y = 0.0f;
+
+            puck.vx = 0.3f;
+            puck.vy = 0.6f;
+        }
+
+        if (leftPlayerScore == GOAL_SCORE) {
+            //endGame(LP);
+        }
+
+        if (rightPlayerScore == GOAL_SCORE) {
+            //endGame(RP);
+        }
+
+
 
 
         globalUniformBufferObject gubo{};
@@ -597,7 +636,7 @@ class MyProject : public BaseProject {
         void* data;
         
         float cameraHeight = 1.0f;
-        glm::mat4 viewMatrices[NUM_VIEWS] = {
+        glm::mat4 viewMatrices[NUM_VIEWS+1] = { //TODO Refactor into different states
             glm::lookAt(glm::vec3(0.0f, 10.0f, 0.000000001f), //Start Screen
                         glm::vec3(0.0f, 0.0f, 0.0f),
                         glm::vec3(0.0f, 1.0f, 0.0f)),
@@ -638,12 +677,14 @@ class MyProject : public BaseProject {
         gubo.coneInOutDecayExp = glm::vec4(0.92f, 0.99f, 0.8f, 2.0f);
         //****//
         
+
+        //TODO Refactor into single function
         
         static unsigned viewIndex = 0;
         if (glfwGetKey(window, GLFW_KEY_P))
             viewIndex = 1;
         if (glfwGetKey(window, GLFW_KEY_V))
-            viewIndex = (viewIndex + 1) % NUM_VIEWS;
+            viewIndex = (viewIndex + 1) % NUM_VIEWS + 1;
         gubo.view = viewMatrices[viewIndex];
 
         gubo.proj = glm::perspective(glm::radians(45.0f),
@@ -712,10 +753,7 @@ class MyProject : public BaseProject {
         vkUnmapMemory(device, DS_RightPaddle.uniformBuffersMemory[0][currentImage]);
 
         lastTime = currentTime;
-        
-        
-        
-
+       
     }
 };
 
