@@ -17,7 +17,7 @@ struct globalUniformBufferObject {
         alignas(16) glm::vec3 lightPos;
         alignas(16) glm::vec3 ambColor;
         alignas(16) glm::vec4 coneInOutDecayExp;
-        alignas(16) glm::vec3 spotPosition1;
+        alignas(16) glm::vec3 spotPosition1;  //TODO No way we can pass an array?
         alignas(16) glm::vec3 spotPosition2;
         alignas(16) glm::vec3 spotPosition3;
         alignas(16) glm::vec3 spotPosition4;
@@ -94,9 +94,59 @@ class MyProject : public BaseProject {
     
     DescriptorSet DS_global;
 
+    //Other variables
     int leftPlayerScore = 0;
     int rightPlayerScore = 0;
 
+    //Assumption: the table is centered in (0, 0)
+    float halfTableLength = 1.7428f / 2; 
+    float halfTableWidth = 0.451f; 
+    float halfWholeTableHeight = 0.05f;
+    float halfSideHeight = 0.018f;
+    float halfTableHeight = halfWholeTableHeight - halfSideHeight;
+    float cornerCircleRadius = halfTableWidth / 2;
+    //Because of the table simmetry, only one of the 4 centers is required in calculations if modulus is used
+    Point cornerCircleCenter = { 
+        -halfTableLength + cornerCircleRadius, 
+        -cornerCircleRadius 
+    };
+    float scoreAreaX = 0.4f;
+
+    float puckRadius = 0.0574f / 2;
+    float puckVelocity = 0.5f;
+    float initialPuckAngle = glm::radians(30.0f);
+    Point puck = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+    float paddleRadius = 0.07;
+    float paddleVelocity = 0.2f;
+    
+    Point lPaddle = { -halfTableLength + paddleRadius, 0.0f, 0.0f, 0.0f };
+    Point rPaddle = { halfTableLength - paddleRadius, 0.0f, 0.0f, 0.0f };
+
+    enum difficulties { 
+        EASY, 
+        NORMAL, 
+        HARD 
+    } difficulty = NORMAL;
+
+    enum states {
+        START,
+        RESET,
+        PLAYING,
+        VICTORY
+    } state = START;
+
+    enum views {
+        STARTSCREEN,
+        ABOVE,
+        LEFTPLAYER,
+        RIGHTPLAYER
+    } view = STARTSCREEN;
+
+    float dt = 0.01f;
+    std::chrono::time_point<std::chrono::system_clock> lastTime = std::chrono::system_clock::now();
+    std::chrono::time_point<std::chrono::system_clock> debounceTime = std::chrono::system_clock::now();
+    std::chrono::time_point<std::chrono::system_clock> currentTime;
 	
 	// Here you set the main application parameters
 	void setWindowParameters() {
@@ -107,6 +157,7 @@ class MyProject : public BaseProject {
 		initialBackgroundColor = {0.0f, 0.5f, 0.0f, 1.0f};
 		
 		// Descriptor pool sizes
+        //TODO Check the number is tight
 		uniformBlocksInPool = 10;
 		texturesInPool = 10;
 		setsInPool = 10;
@@ -193,6 +244,7 @@ class MyProject : public BaseProject {
     }
 
     // Here you destroy all the objects you created!
+    //TODO Check everything is destroyed properly
     void localCleanup() {
         //Table
         DS_Table.cleanup();
@@ -332,64 +384,126 @@ class MyProject : public BaseProject {
 
     }
 
-    // Here is where you update the uniforms.
-    // Very likely this will be where you will be writing the logic of your application.
-    void updateUniformBuffer(uint32_t currentImage) {
-        static std::chrono::time_point<std::chrono::system_clock> lastTime = std::chrono::system_clock::now();
-        static std::chrono::time_point<std::chrono::system_clock> debounceTime = std::chrono::system_clock::now();
-        std::chrono::time_point<std::chrono::system_clock> currentTime = std::chrono::system_clock::now();
-        float dt = 0.01f;/* std::chrono::duration<float, std::chrono::seconds::period>
-            (currentTime - lastTime).count();*/
+    void updateGPUData(uint32_t currentImage) {
+        globalUniformBufferObject gubo{};
+        UniformBufferObject ubo{};
 
-        //WTF is (*was) going on here with the time handling?
+        void* data;
 
-        //static int state = 0;        // 0 - everything is still.
-                                    // 3 - three wheels are turning
-                                    // 2 - two wheels are turning
-                                    // 1 - one wheels is turning
- 
-        //static float debounce = time;
-
-        float halfTableLength = 1.7428f/2; //TODO Modify according to the model
-        float halfTableWidth = 0.451f; //TODO Modify according to the model
-        float halfWholeTableHeight = 0.05f;
-        float halfSideHeight = 0.018f;
-        float halfTableHeight = halfWholeTableHeight - halfSideHeight;
-        
-        float cornerCircleRadius = halfTableWidth / 2;
-        Point cornersCirclesCenters[NUM_CORNERS] = { //TODO Using modulus, I have a hunch we don't actually need 4 cases. Not really used so far
-            { -halfTableLength + cornerCircleRadius, -cornerCircleRadius }, //LEFT -> TOP
-            { -halfTableLength + cornerCircleRadius, cornerCircleRadius }, //        -> BOTTOM
-            { halfTableLength - cornerCircleRadius, -cornerCircleRadius }, //RIGHT -> TOP
-            { halfTableLength - cornerCircleRadius, cornerCircleRadius } //        -> BOTTOM
+        float cameraHeight = 1.0f;
+        glm::mat4 viewMatrices[NUM_VIEWS + 1] = { //TODO Refactor into different states
+            glm::lookAt(glm::vec3(0.0f, 10.0f, 0.000000001f), //Start Screen
+                        glm::vec3(0.0f, 0.0f, 0.0f),
+                        glm::vec3(0.0f, 1.0f, 0.0f)),
+            glm::lookAt(glm::vec3(0.0f, 2.0f, 1.0f), //Center
+                        glm::vec3(0.0f, halfTableHeight, 0.0f),
+                        glm::vec3(0.0f, 1.0f, 0.0f)),
+            glm::lookAt(glm::vec3(-halfTableLength - 0.8f, cameraHeight, 0.0f), //Left player
+                        glm::vec3(0.0f, halfTableHeight, 0.0f),
+                        glm::vec3(0.0f, 1.0f, 0.0f)),
+            glm::lookAt(glm::vec3(halfTableLength + 0.8f, cameraHeight, 0.0f), //Right player
+                        glm::vec3(0.0f, halfTableHeight, 0.0f),
+                        glm::vec3(0.0f, 1.0f, 0.0f)),
         };
-        enum { LT, LB, RT, RB };
-        
-        float puckRadius = 0.0574f/2; //TODO Modify according to the model
 
-        float paddleRadius = 0.07; //TODO Modify according to the model
-        float paddleVelocity = 0.2f;
+        //** spot light **/
+        //gubo.lightPos = glm::vec3(0.0f, 4.0f, -4.0f);
+        gubo.spotPosition1 = glm::vec3(-0.7f, 1.0f, 0.2f);
+        gubo.spotPosition2 = glm::vec3(-0.7f, 1.0f, -0.2f);
+        gubo.spotPosition3 = glm::vec3(0.7f, 1.0f, 0.2f);
+        gubo.spotPosition4 = glm::vec3(0.7f, 1.0f, -0.2f);
+        gubo.spotPosition5 = glm::vec3(-0.2f, 1.0f, 0.2f);
+        gubo.spotPosition6 = glm::vec3(-0.2f, 1.0f, -0.2f);
+        gubo.spotPosition7 = glm::vec3(0.2f, 1.0f, 0.2f);
+        gubo.spotPosition8 = glm::vec3(0.2f, 1.0f, -0.2f);
 
-        float scoreAreaX = 0.4f; //TODO ^^
+        gubo.spotDirection1 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
+        gubo.spotDirection2 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
+        gubo.spotDirection3 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
+        gubo.spotDirection4 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
+        gubo.spotDirection5 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
+        gubo.spotDirection6 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
+        gubo.spotDirection7 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
+        gubo.spotDirection8 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
 
-        //Assumption: the table is centered in (0, 0)
-        static Point lPaddle = { -halfTableLength + paddleRadius, 0.0f, 0.0f, 0.0f };
-        static Point rPaddle = { halfTableLength - paddleRadius, 0.0f, 0.0f, 0.0f };
-        static Point puck = { 0.0f, 0.0f, 0.0f, 0.0f };
+        gubo.lightColor = glm::vec3(0.6f, 0.6f, 0.6f);
+        gubo.ambColor = glm::vec3(0.2f, 0.2f, 0.2f);
+        gubo.coneInOutDecayExp = glm::vec4(0.92f, 0.99f, 0.8f, 2.0f);
+        //****//
 
-        if (glfwGetKey(window, GLFW_KEY_SPACE)) { //START
-            if (puck.vx == 0.0f && puck.vy == 0.0f) {
-                puck.vx = 0.4f; //TODO make it random outside a cone
-                puck.vy = 0.6f;
-            }
-        }
+        gubo.view = viewMatrices[view];
 
-        enum {EASY, NORMAL, HARD};
-        static int difficulty = NORMAL;
+        gubo.proj = glm::perspective(glm::radians(45.0f),
+            swapChainExtent.width / (float)swapChainExtent.height,
+            0.1f, 10.0f);
+        gubo.proj[1][1] *= -1;
 
-        if (glfwGetKey(window, GLFW_KEY_F) && difficulty != EASY) { //TODO Use to set difficulty - fixed amounts
-            puck.vx /= 1.4 ;
+        vkMapMemory(device, DS_global.uniformBuffersMemory[0][currentImage], 0,
+            sizeof(gubo), 0, &data);
+        memcpy(data, &gubo, sizeof(gubo));
+        vkUnmapMemory(device, DS_global.uniformBuffersMemory[0][currentImage]);
+
+
+        // For the Table body
+        ubo.model = glm::mat4(1.0f);
+        vkMapMemory(device, DS_Table.uniformBuffersMemory[0][currentImage], 0,
+            sizeof(ubo), 0, &data);
+        memcpy(data, &ubo, sizeof(ubo));
+        vkUnmapMemory(device, DS_Table.uniformBuffersMemory[0][currentImage]);
+
+        // For the Puck
+        const float halfPuckHeight = 0.1f; //TODO Sync with model
+        ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(puck.x, 0.0f, puck.y));
+
+        vkMapMemory(device, DS_Puck.uniformBuffersMemory[0][currentImage], 0,
+            sizeof(ubo), 0, &data);
+        memcpy(data, &ubo, sizeof(ubo));
+        vkUnmapMemory(device, DS_Puck.uniformBuffersMemory[0][currentImage]);
+
+        // For the lPaddle
+        const float halfPaddleHeight = 0.1f;
+        ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(lPaddle.x, 0.0f, lPaddle.y));
+
+        vkMapMemory(device, DS_LeftPaddle.uniformBuffersMemory[0][currentImage], 0,
+            sizeof(ubo), 0, &data);
+        memcpy(data, &ubo, sizeof(ubo));
+        vkUnmapMemory(device, DS_LeftPaddle.uniformBuffersMemory[0][currentImage]);
+
+        //SkyBox
+        ubo.model = glm::scale(glm::mat4(1.0f), glm::vec3(5.5f)) *
+            glm::rotate(glm::mat4(1.0), glm::radians(90.0f), glm::vec3(0, 1, 0));
+
+        vkMapMemory(device, DS_SB.uniformBuffersMemory[0][currentImage], 0,
+            sizeof(ubo), 0, &data);
+        memcpy(data, &ubo, sizeof(ubo));
+        vkUnmapMemory(device, DS_SB.uniformBuffersMemory[0][currentImage]);
+
+
+        //Start Screen
+        ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 4.0f, 0.0f)) *
+            glm::rotate(glm::mat4(1.0), glm::radians(180.0f), glm::vec3(0, 1, 0)) *
+            glm::scale(glm::mat4(1.0), glm::vec3(0.4f, 0.5f, 0.27f));
+
+        vkMapMemory(device, DS_StartScreen.uniformBuffersMemory[0][currentImage], 0,
+            sizeof(ubo), 0, &data);
+        memcpy(data, &ubo, sizeof(ubo));
+        vkUnmapMemory(device, DS_StartScreen.uniformBuffersMemory[0][currentImage]);
+
+
+        // For the rPaddle
+        ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(rPaddle.x, 0.0f, rPaddle.y));
+
+        vkMapMemory(device, DS_RightPaddle.uniformBuffersMemory[0][currentImage], 0,
+            sizeof(ubo), 0, &data);
+        memcpy(data, &ubo, sizeof(ubo));
+        vkUnmapMemory(device, DS_RightPaddle.uniformBuffersMemory[0][currentImage]);
+    }
+
+    void checkChangeDifficulty() {
+        if (glfwGetKey(window, GLFW_KEY_F) && difficulty != EASY) {
+            puck.vx /= 1.4;
             puck.vy /= 1.4;
+            puckVelocity /= 1.4;
             if (difficulty == NORMAL)
                 difficulty = EASY;
             else
@@ -399,64 +513,105 @@ class MyProject : public BaseProject {
         if (glfwGetKey(window, GLFW_KEY_R) && difficulty != HARD) {
             puck.vx *= 1.4;
             puck.vy *= 1.4;
+            puckVelocity *= 1.4;
             if (difficulty == NORMAL)
                 difficulty = HARD;
             else
                 difficulty = NORMAL;
         }
+    }
 
-        if (glfwGetKey(window, GLFW_KEY_T)) { //Test setting
-            puck.x = halfTableLength - puckRadius - 0.2f;
-            puck.y = halfTableWidth - puckRadius - 0.2f;
-            puck.vx = 0.3f;
-            puck.vy = 0.6f;
+    void checkPaddlesMovement() {
+        switch (view) {
+            case ABOVE:
+                if (glfwGetKey(window, GLFW_KEY_A)) 
+                    lPaddle.vx -= paddleVelocity;
+                
+                if (glfwGetKey(window, GLFW_KEY_D)) 
+                    lPaddle.vx += paddleVelocity;
+          
+                if (glfwGetKey(window, GLFW_KEY_W)) 
+                    lPaddle.vy -= paddleVelocity;
+                
+                if (glfwGetKey(window, GLFW_KEY_S)) 
+                    lPaddle.vy += paddleVelocity;
+                
+                if (glfwGetKey(window, GLFW_KEY_LEFT)) 
+                    rPaddle.vx -= paddleVelocity;
+                
+                if (glfwGetKey(window, GLFW_KEY_RIGHT)) 
+                    rPaddle.vx += paddleVelocity;
+                
+                if (glfwGetKey(window, GLFW_KEY_UP))  //y-axis is reversed to match z-axis later during matrix creation
+                    rPaddle.vy -= paddleVelocity;
+                
+                if (glfwGetKey(window, GLFW_KEY_DOWN)) 
+                    rPaddle.vy += paddleVelocity;                
+                break;
+            
+            case LEFTPLAYER:
+                if (glfwGetKey(window, GLFW_KEY_S)) 
+                    lPaddle.vx -= paddleVelocity;
+                
+                if (glfwGetKey(window, GLFW_KEY_W)) 
+                    lPaddle.vx += paddleVelocity;
+                
+                if (glfwGetKey(window, GLFW_KEY_A)) 
+                    lPaddle.vy -= paddleVelocity;
+                
+                if (glfwGetKey(window, GLFW_KEY_D)) 
+                    lPaddle.vy += paddleVelocity;
+                
+                if (glfwGetKey(window, GLFW_KEY_DOWN)) 
+                    rPaddle.vx -= paddleVelocity;
+                
+                if (glfwGetKey(window, GLFW_KEY_UP)) 
+                    rPaddle.vx += paddleVelocity;
+                
+                if (glfwGetKey(window, GLFW_KEY_LEFT))   //y-axis is reversed to match z-axis later during matrix creation
+                    rPaddle.vy -= paddleVelocity;
+                
+                if (glfwGetKey(window, GLFW_KEY_RIGHT)) 
+                    rPaddle.vy += paddleVelocity;                
+                break;
+            
+            case RIGHTPLAYER:
+                if (glfwGetKey(window, GLFW_KEY_W))
+                    lPaddle.vx -= paddleVelocity;
+
+                if (glfwGetKey(window, GLFW_KEY_S))
+                    lPaddle.vx += paddleVelocity;
+
+                if (glfwGetKey(window, GLFW_KEY_D))
+                    lPaddle.vy -= paddleVelocity;
+
+                if (glfwGetKey(window, GLFW_KEY_A))
+                    lPaddle.vy += paddleVelocity;
+
+                if (glfwGetKey(window, GLFW_KEY_UP))
+                    rPaddle.vx -= paddleVelocity;
+
+                if (glfwGetKey(window, GLFW_KEY_DOWN))
+                    rPaddle.vx += paddleVelocity;
+
+                if (glfwGetKey(window, GLFW_KEY_RIGHT))   //y-axis is reversed to match z-axis later during matrix creation
+                    rPaddle.vy -= paddleVelocity;
+
+                if (glfwGetKey(window, GLFW_KEY_LEFT))
+                    rPaddle.vy += paddleVelocity;
+                break;
         }
+    }
 
-        lPaddle.vx = 0.0f;
-        lPaddle.vy = 0.0f;
-        if (glfwGetKey(window, GLFW_KEY_A) /*TODO lPaddle not at the border*/) { //TODO Change according to view
-            lPaddle.vx -= paddleVelocity;
-        }
-
-        if (glfwGetKey(window, GLFW_KEY_D)) { //TODO same checks as above
-            lPaddle.vx += paddleVelocity;
-        }
-
-        if (glfwGetKey(window, GLFW_KEY_W)) {
-            lPaddle.vy -= paddleVelocity;
-        }
-
-        if (glfwGetKey(window, GLFW_KEY_S)) {
-            lPaddle.vy += paddleVelocity;
-        }
-
-        rPaddle.vx = 0.0f;
-        rPaddle.vy = 0.0f;
-        if (glfwGetKey(window, GLFW_KEY_LEFT)) {  //TODO Same checks as above
-            rPaddle.vx -= paddleVelocity;
-        }
-
-        if (glfwGetKey(window, GLFW_KEY_RIGHT)) {
-            rPaddle.vx += paddleVelocity;
-        }
-
-        if (glfwGetKey(window, GLFW_KEY_UP)) {  //y-axis is reversed to match z-axis later during matrix creation
-            rPaddle.vy -= paddleVelocity;
-        }
-
-        if (glfwGetKey(window, GLFW_KEY_DOWN)) {
-            rPaddle.vy += paddleVelocity;
-        }
-
-        
+    //TODO Could avoid repeating twice the same piece of code
+    void updatePaddlesPosition() {
         float tempPosition;
         bool update = false;
-        
-        //TODO Refactor into single function
+
         tempPosition = lPaddle.x + lPaddle.vx * dt;
         if (tempPosition + paddleRadius <= -scoreAreaX) {
-            if (abs(lPaddle.y) > cornerCircleRadius) {//LT, LR
-                float relativeX = abs(tempPosition) - abs(cornersCirclesCenters[LT].x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
+            if (abs(lPaddle.y) > cornerCircleRadius) {
+                float relativeX = abs(tempPosition) - abs(cornerCircleCenter.x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
                 float relativeY = abs(lPaddle.y) - cornerCircleRadius;
                 float maxRelativeX = sqrt(pow((cornerCircleRadius - paddleRadius), 2) - pow(relativeY, 2));
                 if (relativeX <= maxRelativeX)
@@ -473,26 +628,26 @@ class MyProject : public BaseProject {
 
         tempPosition = lPaddle.y + lPaddle.vy * dt;
         if (abs(tempPosition) + paddleRadius <= halfTableWidth) {
-            if (abs(lPaddle.x) > abs(cornersCirclesCenters[LT].x)) {//LT, LR
-                float relativeX = abs(lPaddle.x) - abs(cornersCirclesCenters[LT].x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
+            if (abs(lPaddle.x) > abs(cornerCircleCenter.x)) {
+                float relativeX = abs(lPaddle.x) - abs(cornerCircleCenter.x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
                 float relativeY = abs(tempPosition) - cornerCircleRadius;
                 float maxRelativeY = sqrt(pow((cornerCircleRadius - paddleRadius), 2) - pow(relativeX, 2));
                 if (relativeY <= maxRelativeY)
                     update = true;
             }
-            else //TODO generalize if above using the absolute values of the quantities involved
+            else
                 update = true;
         }
         if (update) {
             lPaddle.y = tempPosition;
             update = false;
         }
-        
-        
+
+
         tempPosition = rPaddle.x + rPaddle.vx * dt;
         if (tempPosition - paddleRadius >= scoreAreaX) {
             if (abs(rPaddle.y) > cornerCircleRadius) {//RT, RB
-                float relativeX = abs(tempPosition) - abs(cornersCirclesCenters[RT].x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
+                float relativeX = abs(tempPosition) - abs(cornerCircleCenter.x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
                 float relativeY = abs(rPaddle.y) - cornerCircleRadius;
                 float maxRelativeX = sqrt(pow((cornerCircleRadius - paddleRadius), 2) - pow(relativeY, 2));
                 if (relativeX <= maxRelativeX)
@@ -509,28 +664,27 @@ class MyProject : public BaseProject {
 
         tempPosition = rPaddle.y + rPaddle.vy * dt;
         if (abs(tempPosition) + paddleRadius <= halfTableWidth) {
-            if (abs(rPaddle.x) > abs(cornersCirclesCenters[RT].x)) {//RT, RB
-                float relativeX = abs(rPaddle.x) - abs(cornersCirclesCenters[RT].x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
+            if (abs(rPaddle.x) > abs(cornerCircleCenter.x)) {
+                float relativeX = abs(rPaddle.x) - abs(cornerCircleCenter.x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
                 float relativeY = abs(tempPosition) - cornerCircleRadius;
                 float maxRelativeY = sqrt(pow((cornerCircleRadius - paddleRadius), 2) - pow(relativeX, 2));
                 if (relativeY <= maxRelativeY)
                     update = true;
             }
-            else //TODO generalize if above using the absolute values of the quantities involved
+            else
                 update = true;
         }
         if (update)
             rPaddle.y = tempPosition;
-        
+    }
 
-
+    glm::vec2 calculateBounceDirection() {
         glm::vec2 normalVector = glm::vec2(0.0f, 0.0f);
         std::chrono::duration<float> debounceInterval = (currentTime - debounceTime);
-        //Corner collision detection code - TODO Replace else if cascade with function call that returns normalVector
-        
+        //Corner collision detection code
 
         if (debounceInterval.count() > 0.05f) {
-            float relativeX = abs(puck.x) - abs(cornersCirclesCenters[LT].x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
+            float relativeX = abs(puck.x) - abs(cornerCircleCenter.x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
             float relativeY = abs(puck.y) - cornerCircleRadius;
             const float relativeRadius = cornerCircleRadius - puckRadius;
 
@@ -541,7 +695,7 @@ class MyProject : public BaseProject {
                     relativeX * ((puck.x < 0) ? 1.0f : -1.0f), //If this parentheses are removed after *, it breaks down awfully. What does it get assigned exactly x) ?
                     relativeY * ((puck.y < 0) ? 1.0f : -1.0f)
                 ));
-
+                
             //Each case has to be handled separately otherwise it's not possible to determine which normal vector has to be used
             else if (puck.y >= halfTableWidth - puckRadius)  //UPPER SIDE
                 normalVector = glm::vec2(0.0f, 1.0f);
@@ -575,191 +729,149 @@ class MyProject : public BaseProject {
             //IMPORTANT ASSUMPTION: paddle velocity is always lower than puck velocity. Otherwise, if the paddle moved in the direction of the puck velocity, 
             //compenetration would occur, debouncing time could expire and a second collision could be triggered
         }
-        
-        //Calculate new vx, vy using the normal vector as done in the Phong model:
-        //Normalize v, flip it (-1) and extract the modulus -> If defined separately at 266 (M * component), modulus is given  --> UPDATE: Normalization not required if normal is provided normalized (or is normalized below)
-        //Dot product with normal, 2*result - initial normalized vector, times M
+        return normalVector;
+    }
 
-        //Handle case where nothing changes: setting a default normal and checking it probably the cheapest way?
+    void launchPuck() {
+        float randomInitialAngleCos = cos(initialPuckAngle) + (1 - cos(initialPuckAngle)) * (rand() % 100) / 100.0f;
+        float randomInitialAngleSin = sqrt(1 - pow(randomInitialAngleCos, 2));
+        puck.vx = puckVelocity * randomInitialAngleCos * ((rand() % 2 == 0) ? -1 : 1);
+        puck.vy = puckVelocity * randomInitialAngleSin * ((rand() % 2 == 0) ? -1 : 1);
+    }
 
-        if (glm::length(normalVector) != 0.0f /* && glm::length(normalVector) < 1.001f - now working*/) {
-            glm::vec2 flippedPuckVel = glm::vec2(-puck.vx, -puck.vy);
-            float velProjectionModulus = dot(flippedPuckVel, normalVector); //Flip puck.v, as in Phong
-            glm::vec2 velProjection = glm::vec2(normalVector * velProjectionModulus);
+    //Calculate new vx, vy using the normal vector as done in the Phong model:
+    //Normalize v, flip it (-1) and extract the modulus -> If defined separately at 266 (M * component), modulus is given  --> UPDATE: Normalization not required if normal is provided normalized (or is normalized below)
+    //Dot product with normal, 2*result - initial normalized vector, times M
+    void updatePuckVelocity(glm::vec2 &normalVector) {
+        glm::vec2 flippedPuckVel = glm::vec2(-puck.vx, -puck.vy);
+        float velProjectionModulus = dot(flippedPuckVel, normalVector); //Flip puck.v, as in Phong
+        glm::vec2 velProjection = glm::vec2(normalVector * velProjectionModulus);
 
-            glm::vec2 finalVelocity = glm::vec2(
-                2.0f * velProjection - flippedPuckVel
-            );
+        glm::vec2 finalVelocity = glm::vec2(
+            2.0f * velProjection - flippedPuckVel
+        );
 
-            puck.vx = finalVelocity.x;
-            puck.vy = finalVelocity.y;
+        puck.vx = finalVelocity.x;
+        puck.vy = finalVelocity.y;
+    }
 
-            debounceTime = currentTime;
-            
-        }
-
-        puck.x += puck.vx * dt;
-        puck.y += puck.vy * dt;
-
+    void checkScoreOccurred() {
         if (puck.x <= -halfTableLength) {
             rightPlayerScore++;
-            //resetGameState();
-            puck.x = 0.0f;
-            puck.y = 0.0f;
+            if (rightPlayerScore == GOAL_SCORE)
+                endGame();
+            else
+                resetGameState();
 
-            puck.vx = 0.3f;
-            puck.vy = 0.6f;
-        } else if(puck.x >= halfTableLength) {
+        } else if (puck.x >= halfTableLength) {
             leftPlayerScore++;
-            //resetGameState();
-            puck.x = 0.0f;
-            puck.y = 0.0f;
-
-            puck.vx = 0.3f;
-            puck.vy = 0.6f;
+            if (leftPlayerScore == GOAL_SCORE)
+                endGame();
+            else
+                resetGameState();
         }
+    }
 
-        if (leftPlayerScore == GOAL_SCORE) {
-            //endGame(LP);
-        }
+    void resetGameState() {
+        puck.x = 0.0f;
+        puck.y = 0.0f;
 
-        if (rightPlayerScore == GOAL_SCORE) {
-            //endGame(RP);
-        }
+        puck.vx = 0.0f;
+        puck.vy = 0.0f;
 
+        lPaddle.x = -halfTableLength + paddleRadius;
+        lPaddle.y = 0.0f; //What would happen here if I assigned a whole new object?
+        rPaddle.x = halfTableLength - paddleRadius;
+        rPaddle.y = 0.0f;
 
+        state = RESET;
+    }
 
+    void endGame() {
+        state = VICTORY;
+        //TODO Show stuff. If not done here, remove method altogether, move state change to resetGameState
+    }
 
-        globalUniformBufferObject gubo{};
-        UniformBufferObject ubo{};
+    // Here is where you update the uniforms.
+    // Very likely this will be where you will be writing the logic of your application.
+    void updateUniformBuffer(uint32_t currentImage) {
+        currentTime = std::chrono::system_clock::now();
+        /*dt = 0.01f; std::chrono::duration<float, std::chrono::seconds::period>
+            (currentTime - lastTime).count();*/
+
+        switch (state) {
+            case START:
+                if (glfwGetKey(window, GLFW_KEY_P)) {
+                    view = ABOVE;
+                    resetGameState();
+                }
+                break;
+            case RESET:
+                if (glfwGetKey(window, GLFW_KEY_SPACE)) {
+                    launchPuck();
+                    state = PLAYING;
+                }
+
+                if (glfwGetKey(window, GLFW_KEY_V))
+                    view = static_cast<views>((view + 1) % NUM_VIEWS + 1);
+                break;
+            case PLAYING:
+                checkChangeDifficulty();
+
+                lPaddle.vx = 0.0f;
+                lPaddle.vy = 0.0f;
                 
-        void* data;
-        
-        float cameraHeight = 1.0f;
-        glm::mat4 viewMatrices[NUM_VIEWS+1] = { //TODO Refactor into different states
-            glm::lookAt(glm::vec3(0.0f, 10.0f, 0.000000001f), //Start Screen
-                        glm::vec3(0.0f, 0.0f, 0.0f),
-                        glm::vec3(0.0f, 1.0f, 0.0f)),
-            glm::lookAt(glm::vec3(0.0f, 2.0f, 1.0f), //Center
-                        glm::vec3(0.0f, halfTableHeight, 0.0f),
-                        glm::vec3(0.0f, 1.0f, 0.0f)),
-            glm::lookAt(glm::vec3(-halfTableLength - 0.8f, cameraHeight, 0.0f), //Left player
-                        glm::vec3(0.0f, halfTableHeight, 0.0f),
-                        glm::vec3(0.0f, 1.0f, 0.0f)),
-            glm::lookAt(glm::vec3(halfTableLength + 0.8f, cameraHeight, 0.0f), //Right player
-                        glm::vec3(0.0f, halfTableHeight, 0.0f),
-                        glm::vec3(0.0f, 1.0f, 0.0f)),
+                rPaddle.vx = 0.0f;
+                rPaddle.vy = 0.0f;
 
-        };
-         
-        //** spot light **/
-        //gubo.lightPos = glm::vec3(0.0f, 4.0f, -4.0f);
-        gubo.spotPosition1 = glm::vec3(-0.7f, 1.0f, 0.2f);
-        gubo.spotPosition2 = glm::vec3(-0.7f, 1.0f, -0.2f);
-        gubo.spotPosition3 = glm::vec3(0.7f, 1.0f, 0.2f);
-        gubo.spotPosition4 = glm::vec3(0.7f, 1.0f, -0.2f);             
-        gubo.spotPosition5 = glm::vec3(-0.2f, 1.0f, 0.2f);
-        gubo.spotPosition6 = glm::vec3(-0.2f, 1.0f, -0.2f);
-        gubo.spotPosition7 = glm::vec3(0.2f, 1.0f, 0.2f);
-        gubo.spotPosition8 = glm::vec3(0.2f, 1.0f, -0.2f);
-                        
-        gubo.spotDirection1 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)),0.0f);
-        gubo.spotDirection2 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)),0.0f);
-        gubo.spotDirection3 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)),0.0f);
-        gubo.spotDirection4 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)),0.0f);
-        gubo.spotDirection5 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)),0.0f);
-        gubo.spotDirection6 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)),0.0f);
-        gubo.spotDirection7 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)),0.0f);
-        gubo.spotDirection8 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)),0.0f);
-                
-        gubo.lightColor = glm::vec3(0.6f, 0.6f, 0.6f);
-        gubo.ambColor = glm::vec3(0.2f, 0.2f, 0.2f);
-        gubo.coneInOutDecayExp = glm::vec4(0.92f, 0.99f, 0.8f, 2.0f);
-        //****//
-        
+                checkPaddlesMovement();
 
-        //TODO Refactor into single function
-        
-        static unsigned viewIndex = 0;
-        if (glfwGetKey(window, GLFW_KEY_P))
-            viewIndex = 1;
-        if (glfwGetKey(window, GLFW_KEY_V))
-            viewIndex = (viewIndex + 1) % NUM_VIEWS + 1;
-        gubo.view = viewMatrices[viewIndex];
+                updatePaddlesPosition();
 
-        gubo.proj = glm::perspective(glm::radians(45.0f),
-                        swapChainExtent.width / (float) swapChainExtent.height,
-                        0.1f, 10.0f);
-        gubo.proj[1][1] *= -1;
+                glm::vec2 normalVector = calculateBounceDirection();
 
-        vkMapMemory(device, DS_global.uniformBuffersMemory[0][currentImage], 0,
-                            sizeof(gubo), 0, &data);
-        memcpy(data, &gubo, sizeof(gubo));
-        vkUnmapMemory(device, DS_global.uniformBuffersMemory[0][currentImage]);
-        
+                if (glm::length(normalVector) != 0.0f) { //Collision detected
+                    updatePuckVelocity(normalVector);
 
-        // For the Table body
-        ubo.model = glm::mat4(1.0f);
-        vkMapMemory(device, DS_Table.uniformBuffersMemory[0][currentImage], 0,
-                            sizeof(ubo), 0, &data);
-        memcpy(data, &ubo, sizeof(ubo));
-        vkUnmapMemory(device, DS_Table.uniformBuffersMemory[0][currentImage]);
+                    debounceTime = currentTime;
+                }
 
-        // For the Puck
-        const float halfPuckHeight = 0.1f; //TODO Sync with model
-        ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(puck.x, 0.0f , puck.y));
-                    
-        vkMapMemory(device, DS_Puck.uniformBuffersMemory[0][currentImage], 0,
-                            sizeof(ubo), 0, &data);
-        memcpy(data, &ubo, sizeof(ubo));
-        vkUnmapMemory(device, DS_Puck.uniformBuffersMemory[0][currentImage]);
+                puck.x += puck.vx * dt;
+                puck.y += puck.vy * dt;
 
-        // For the lPaddle
-        const float halfPaddleHeight = 0.1f;
-        ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(lPaddle.x, 0.0f, lPaddle.y));
-                    
-        vkMapMemory(device, DS_LeftPaddle.uniformBuffersMemory[0][currentImage], 0,
-                            sizeof(ubo), 0, &data);
-        memcpy(data, &ubo, sizeof(ubo));
-        vkUnmapMemory(device, DS_LeftPaddle.uniformBuffersMemory[0][currentImage]);
+                checkScoreOccurred(); 
 
-        //SkyBox
-        ubo.model = glm::scale(glm::mat4(1.0f), glm::vec3(5.5f))*
-                glm::rotate(glm::mat4(1.0), glm::radians(90.0f), glm::vec3(0, 1, 0));
+                if (glfwGetKey(window, GLFW_KEY_T)) { //Test setting, set to custom position
+                    puck.x = halfTableLength - puckRadius - 0.2f;
+                    puck.y = halfTableWidth - puckRadius - 0.2f;
+                    puck.vx = 0.3f;
+                    puck.vy = 0.6f;
+                }
 
-        vkMapMemory(device, DS_SB.uniformBuffersMemory[0][currentImage], 0,
-            sizeof(ubo), 0, &data);
-        memcpy(data, &ubo, sizeof(ubo));
-        vkUnmapMemory(device, DS_SB.uniformBuffersMemory[0][currentImage]);
-        
-         
-        //Start Screen
-        ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 4.0f, 0.0f))*
-            glm::rotate(glm::mat4(1.0), glm::radians(180.0f), glm::vec3(0, 1, 0))*
-            glm::scale(glm::mat4(1.0),glm::vec3(0.4f, 0.5f, 0.27f));
- 
-        vkMapMemory(device, DS_StartScreen.uniformBuffersMemory[0][currentImage], 0,
-            sizeof(ubo), 0, &data);
-        memcpy(data, &ubo, sizeof(ubo));
-        vkUnmapMemory(device, DS_StartScreen.uniformBuffersMemory[0][currentImage]);
-         
-        
-        // For the rPaddle
-        ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(rPaddle.x, 0.0f, rPaddle.y));
-                    
-        vkMapMemory(device, DS_RightPaddle.uniformBuffersMemory[0][currentImage], 0,
-                            sizeof(ubo), 0, &data);
-        memcpy(data, &ubo, sizeof(ubo));
-        vkUnmapMemory(device, DS_RightPaddle.uniformBuffersMemory[0][currentImage]);
+                if (glfwGetKey(window, GLFW_KEY_V))
+                    view = static_cast<views>((view + 1) % NUM_VIEWS + 1);
+
+                break;
+            case VICTORY:
+                if (glfwGetKey(window, GLFW_KEY_R)) {
+                    rightPlayerScore = 0;
+                    leftPlayerScore = 0;
+                    resetGameState();
+                }
+        }
+
+        updateGPUData(currentImage);
 
         lastTime = currentTime;
-       
     }
+    
 };
 
 // This is the main: probably you do not need to touch this!
 int main() {
     MyProject app;
+
+    srand(time(NULL));
 
     try {
         app.run();
