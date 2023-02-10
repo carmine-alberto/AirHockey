@@ -899,9 +899,13 @@ class MyProject : public BaseProject {
         dt = 0.01f; /*std::chrono::duration<float, std::chrono::seconds::period>
             (currentTime - lastTime).count();*/
 
+        /*if (glfwGetKey(window, GLFW_KEY_ESCAPE))
+            glfwSetWindowMonitor(window, NULL, 100, 20, windowWidth, windowHeight, 120);
+        TODO: if we want to add fullscreen -> windowed, we have to recreate the swapChain. 
+        See https://vulkan-tutorial.com/Drawing_a_triangle/Swap_chain_recreation
+        */
         switch (state) {
             case START:{
-                checkSkyBoxChanges();
                 if (glfwGetKey(window, GLFW_KEY_P)) {
                     view = ABOVE;
                     resetGameState();
@@ -909,6 +913,7 @@ class MyProject : public BaseProject {
                 break;
         }
             case RESET:{
+                checkSkyBoxChanges();
                 if (glfwGetKey(window, GLFW_KEY_SPACE)) {
                     launchPuck();
                     state = PLAYING;
@@ -919,6 +924,7 @@ class MyProject : public BaseProject {
                 break;
         }
             case PLAYING:{
+                checkSkyBoxChanges();
                 checkChangeDifficulty();
 
                 lPaddle.vx = 0.0f;

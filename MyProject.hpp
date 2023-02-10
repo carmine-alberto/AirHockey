@@ -359,6 +359,8 @@ protected:
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
         window = glfwCreateWindow(windowWidth, windowHeight, windowTitle.c_str(), nullptr, nullptr);
+        //TODO: do we want fullscreen? 
+        //glfwSetWindowMonitor(window, glfwGetPrimaryMonitor(), 100, 20, windowWidth, windowHeight, 120);
     }
 
     virtual void localInit() = 0;
