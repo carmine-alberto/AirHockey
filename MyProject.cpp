@@ -2,7 +2,7 @@
 
 #include "MyProject.hpp"
 
-#define NUM_VIEWS 3
+#define NUM_VIEWS 4
 #define NUM_CORNERS 4
 #define GOAL_SCORE 7
 
@@ -21,7 +21,6 @@ struct globalUniformBufferObject {
         alignas(16) glm::vec3 spotPosition2;
         alignas(16) glm::vec3 spotDirection;
         alignas(16) glm::vec3 eyePos;
-    
 };
 
 struct UniformBufferObject {
@@ -88,11 +87,18 @@ class MyProject : public BaseProject {
     DescriptorSet DS_LNumbers[GOAL_SCORE];
     DescriptorSet DS_RNumbers[GOAL_SCORE];
     
+    //Win Screen
+    Model M_BlueWin;
+    Model M_RedWin;
+    Texture T_Win;
+    DescriptorSet DS_BlueWin;
+    DescriptorSet DS_RedWin;
+    
     DescriptorSet DS_global;
 
     //Other variables
-    int leftPlayerScore = 0;
-    int rightPlayerScore = 0;
+    int leftPlayerScore = 6;
+    int rightPlayerScore = 6;
 
     //Assumption: the table is centered in (0, 0)
     float halfTableLength = 1.7428f / 2;
@@ -115,6 +121,8 @@ class MyProject : public BaseProject {
 
     float paddleRadius = 0.07;
     float paddleVelocity = 0.2f;
+    
+    int winner; //1 Blue - 2 red
     
     Point lPaddle = { -halfTableLength + paddleRadius, 0.0f, 0.0f, 0.0f };
     Point rPaddle = { halfTableLength - paddleRadius, 0.0f, 0.0f, 0.0f };
@@ -139,7 +147,8 @@ class MyProject : public BaseProject {
         STARTSCREEN,
         ABOVE,
         LEFTPLAYER,
-        RIGHTPLAYER
+        RIGHTPLAYER,
+        ENDGAME
     } view = STARTSCREEN;
     
     enum skyBoxes {
@@ -251,7 +260,7 @@ class MyProject : public BaseProject {
         T_RNumbers.init(this, "textures/rightNumbers.png");
         TODO Do we want to give numbers a different texture?*/
         for (int i = 0; i < GOAL_SCORE; i++) {
-            M_Numbers[i].init(this, "models/" + std::to_string(i) + ".obj");
+            M_Numbers[i].init(this, "models/points/" + std::to_string(i) + ".obj");
 
             DS_LNumbers[i].init(this, &DSLobj, {
                         {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
@@ -262,6 +271,24 @@ class MyProject : public BaseProject {
                         {1, TEXTURE, 0, &T_RightPaddle}
                 });
         }
+        
+        
+        //Win Screen
+        M_BlueWin.init(this, "models/BlueWin.obj"); //Blue Win
+        M_RedWin.init(this, "models/RedWin.obj"); //Red Win
+        T_Win.init(this, "textures/gold.jpeg");
+        DS_BlueWin.init(this, &DSLobj, {
+            {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
+            {1, TEXTURE, 0, &T_Win}
+        });
+        DS_RedWin.init(this, &DSLobj, {
+            {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
+            {1, TEXTURE, 0, &T_Win}
+        });
+
+        DS_global.init(this, &DSLglobal, {
+                    {0, UNIFORM, sizeof(globalUniformBufferObject), nullptr}
+                });
 
         DS_global.init(this, &DSLglobal, {
                     {0, UNIFORM, sizeof(globalUniformBufferObject), nullptr}
@@ -310,6 +337,13 @@ class MyProject : public BaseProject {
         DS_StartScreen.cleanup();
         T_StartScreen.cleanup();
         M_StartScreen.cleanup();
+        
+        //Win Text
+        M_BlueWin.cleanup();
+        M_RedWin.cleanup();
+        T_Win.cleanup();
+        DS_BlueWin.cleanup();
+        DS_RedWin.cleanup();
         
         DS_global.cleanup();
 
@@ -451,11 +485,40 @@ class MyProject : public BaseProject {
         }
 
 
+        //Blue Win
+        VkBuffer vertexBuffers_BlueWin[] = { M_BlueWin.vertexBuffer };
+        VkDeviceSize offsets_BlueWin[] = { 0 };
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers_BlueWin, offsets_BlueWin);
+        vkCmdBindIndexBuffer(commandBuffer, M_BlueWin.indexBuffer, 0,
+            VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+         P1.pipelineLayout, 1, 1, &DS_BlueWin.descriptorSets[currentImage],
+            0, nullptr);
+        vkCmdDrawIndexed(commandBuffer,
+            static_cast<uint32_t>(M_BlueWin.indices.size()), 1, 0, 0, 0);
+        
+        //Red Win
+        VkBuffer vertexBuffers_RedWin[] = { M_RedWin.vertexBuffer };
+        VkDeviceSize offsets_RedWin[] = { 0 };
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers_RedWin, offsets_RedWin);
+        vkCmdBindIndexBuffer(commandBuffer, M_RedWin.indexBuffer, 0,
+            VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+         P1.pipelineLayout, 1, 1, &DS_RedWin.descriptorSets[currentImage],
+            0, nullptr);
+        vkCmdDrawIndexed(commandBuffer,
+            static_cast<uint32_t>(M_RedWin.indices.size()), 1, 0, 0, 0);
       
 
     }
 
     void updateGPUData(uint32_t currentImage) {
+        static auto startTime = std::chrono::high_resolution_clock::now();
+        auto current = std::chrono::high_resolution_clock::now();
+        float time = std::chrono::duration<float, std::chrono::seconds::period>
+                    (current - startTime).count();
         globalUniformBufferObject gubo{};
         UniformBufferObject ubo{};
 
@@ -473,6 +536,9 @@ class MyProject : public BaseProject {
                         glm::vec3(0.0f, halfTableHeight, 0.0f),
                         glm::vec3(0.0f, 1.0f, 0.0f)),
             glm::lookAt(glm::vec3(halfTableLength + 0.8f, cameraHeight, 0.0f), //Right player
+                        glm::vec3(0.0f, halfTableHeight, 0.0f),
+                        glm::vec3(0.0f, 1.0f, 0.0f)),
+            glm::lookAt(glm::vec3(0.0f, 0.8f, 2.4f), //Center
                         glm::vec3(0.0f, halfTableHeight, 0.0f),
                         glm::vec3(0.0f, 1.0f, 0.0f)),
         };
@@ -556,7 +622,7 @@ class MyProject : public BaseProject {
         //Start Screen
         ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 4.0f, 0.0f)) *
             glm::rotate(glm::mat4(1.0), glm::radians(180.0f), glm::vec3(0, 1, 0)) *
-            glm::scale(glm::mat4(1.0), glm::vec3(0.4f, 0.5f, 0.27f));
+        glm::scale(glm::mat4(1.0), glm::vec3(0.4f, 0.5f, 0.27f));
 
         vkMapMemory(device, DS_StartScreen.uniformBuffersMemory[0][currentImage], 0,
             sizeof(ubo), 0, &data);
@@ -570,7 +636,7 @@ class MyProject : public BaseProject {
             if (i == leftPlayerScore)
                 visibleZ = lScore.y;
             ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(lScore.x, scoreHeight, visibleZ)) *
-                glm::scale(glm::mat4(1.0f), glm::vec3(0.02f));
+                glm::scale(glm::mat4(1.0f), glm::vec3(0.5f));
 
             vkMapMemory(device, DS_LNumbers[i].uniformBuffersMemory[0][currentImage], 0,
                 sizeof(ubo), 0, &data);
@@ -582,13 +648,66 @@ class MyProject : public BaseProject {
             if (i == rightPlayerScore)
                 visibleZ = rScore.y;
             ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(rScore.x, scoreHeight, visibleZ)) *
-                glm::scale(glm::mat4(1.0f), glm::vec3(0.02f));
+                glm::scale(glm::mat4(1.0f), glm::vec3(0.5f));
 
             vkMapMemory(device, DS_RNumbers[i].uniformBuffersMemory[0][currentImage], 0,
                 sizeof(ubo), 0, &data);
             memcpy(data, &ubo, sizeof(ubo));
             vkUnmapMemory(device, DS_RNumbers[i].uniformBuffersMemory[0][currentImage]);
         }
+        
+        //Win
+        if(state==VICTORY){
+            switch (winner) {
+                case 1:
+                    ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, 0.2f))*
+                    glm::scale(glm::mat4(1.0),glm::vec3(0.2f));
+                    ubo.model = glm::rotate(ubo.model, glm::radians(30.0f) * cos(time/2), glm::vec3(0.0f, 1.0f, 0.0f));
+                                
+                    vkMapMemory(device, DS_BlueWin.uniformBuffersMemory[0][currentImage], 0,
+                                        sizeof(ubo), 0, &data);
+                    memcpy(data, &ubo, sizeof(ubo));
+                    vkUnmapMemory(device, DS_BlueWin.uniformBuffersMemory[0][currentImage]);
+                    break;
+                    
+                case 2:
+                    ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, 0.2f))*
+                    glm::scale(glm::mat4(1.0),glm::vec3(0.2f));;
+                    ubo.model = glm::rotate(ubo.model, glm::radians(30.0f) * cos(time/2), glm::vec3(0.0f, 1.0f, 0.0f));
+                                
+                    vkMapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage], 0,
+                                        sizeof(ubo), 0, &data);
+                    memcpy(data, &ubo, sizeof(ubo));
+                    vkUnmapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage]);
+                    break;
+            }
+        }
+        else{
+            switch (winner) {
+                case 1:
+                    ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.4f, 0.2f))*
+                    glm::scale(glm::mat4(1.0),glm::vec3(0.2f));
+                    //ubo.model = glm::rotate(ubo.model, glm::radians(30.0f) * cos(time/2), glm::vec3(0.0f, 1.0f, 0.0f));
+                                
+                    vkMapMemory(device, DS_BlueWin.uniformBuffersMemory[0][currentImage], 0,
+                                        sizeof(ubo), 0, &data);
+                    memcpy(data, &ubo, sizeof(ubo));
+                    vkUnmapMemory(device, DS_BlueWin.uniformBuffersMemory[0][currentImage]);
+                    break;
+                    
+                case 2:
+                    ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.4f, 0.2f))*
+                    glm::scale(glm::mat4(1.0),glm::vec3(0.2f));;
+                    //ubo.model = glm::rotate(ubo.model, glm::radians(30.0f) * cos(time/2), glm::vec3(0.0f, 1.0f, 0.0f));
+                                
+                    vkMapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage], 0,
+                                        sizeof(ubo), 0, &data);
+                    memcpy(data, &ubo, sizeof(ubo));
+                    vkUnmapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage]);
+                    break;
+            }
+        }
+        
     }
 
     void checkSkyBoxChanges(){
@@ -858,15 +977,17 @@ class MyProject : public BaseProject {
     void checkScoreOccurred() {
         if (puck.x <= -halfTableLength) {
             rightPlayerScore++;
-            if (rightPlayerScore == GOAL_SCORE)
-                endGame();
+            if (rightPlayerScore == GOAL_SCORE){
+                winner = 2;
+                endGame();}
             else
                 resetGameState();
 
         } else if (puck.x >= halfTableLength) {
             leftPlayerScore++;
-            if (leftPlayerScore == GOAL_SCORE)
-                endGame();
+            if (leftPlayerScore == GOAL_SCORE){
+                winner = 1;
+                endGame();}
             else
                 resetGameState();
         }
@@ -885,10 +1006,12 @@ class MyProject : public BaseProject {
         rPaddle.y = 0.0f;
 
         state = RESET;
+        view=ABOVE;
     }
 
     void endGame() {
         state = VICTORY;
+        //resetGameState();
         //TODO Show stuff. If not done here, remove method altogether, move state change to resetGameState
     }
 
@@ -961,6 +1084,7 @@ class MyProject : public BaseProject {
                 break;
             }
             case VICTORY:{
+                view = ENDGAME;
                 if (glfwGetKey(window, GLFW_KEY_R)) {
                     rightPlayerScore = 0;
                     leftPlayerScore = 0;
