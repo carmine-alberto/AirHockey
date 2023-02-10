@@ -17,22 +17,9 @@ struct globalUniformBufferObject {
         alignas(16) glm::vec3 lightPos;
         alignas(16) glm::vec3 ambColor;
         alignas(16) glm::vec4 coneInOutDecayExp;
-        alignas(16) glm::vec3 spotPosition1;  //TODO No way we can pass an array?
+        alignas(16) glm::vec3 spotPosition1;  
         alignas(16) glm::vec3 spotPosition2;
-        alignas(16) glm::vec3 spotPosition3;
-        alignas(16) glm::vec3 spotPosition4;
-        alignas(16) glm::vec3 spotPosition5;
-        alignas(16) glm::vec3 spotPosition6;
-        alignas(16) glm::vec3 spotPosition7;
-        alignas(16) glm::vec3 spotPosition8;
-        alignas(16) glm::vec3 spotDirection1;
-        alignas(16) glm::vec3 spotDirection2;
-        alignas(16) glm::vec3 spotDirection3;
-        alignas(16) glm::vec3 spotDirection4;
-        alignas(16) glm::vec3 spotDirection5;
-        alignas(16) glm::vec3 spotDirection6;
-        alignas(16) glm::vec3 spotDirection7;
-        alignas(16) glm::vec3 spotDirection8;
+        alignas(16) glm::vec3 spotDirection;
         alignas(16) glm::vec3 eyePos;
     
 };
@@ -66,8 +53,10 @@ class MyProject : public BaseProject {
 
     //SkyBox
     Model M_SB;
-    Texture T_SB;
-    DescriptorSet DS_SB;
+    Texture T_Clouds;
+    Texture T_Space;
+    DescriptorSet DS_Space;
+    DescriptorSet DS_Clouds;
     
      
     // Models, textures and Descriptors (values assigned to the uniforms)
@@ -106,16 +95,16 @@ class MyProject : public BaseProject {
     int rightPlayerScore = 0;
 
     //Assumption: the table is centered in (0, 0)
-    float halfTableLength = 1.7428f / 2; 
-    float halfTableWidth = 0.451f; 
+    float halfTableLength = 1.7428f / 2;
+    float halfTableWidth = 0.451f;
     float halfWholeTableHeight = 0.05f;
     float halfSideHeight = 0.018f;
     float halfTableHeight = halfWholeTableHeight - halfSideHeight;
     float cornerCircleRadius = halfTableWidth / 2;
     //Because of the table simmetry, only one of the 4 centers is required in calculations if modulus is used
-    Point cornerCircleCenter = { 
-        -halfTableLength + cornerCircleRadius, 
-        -cornerCircleRadius 
+    Point cornerCircleCenter = {
+        -halfTableLength + cornerCircleRadius,
+        -cornerCircleRadius
     };
     float scoreAreaX = 0.4f;
 
@@ -133,10 +122,10 @@ class MyProject : public BaseProject {
     Point lScore = { -halfTableLength / 2, -halfTableWidth - 0.1f };
     Point rScore = { halfTableLength / 2, -halfTableWidth - 0.1f };
 
-    enum difficulties { 
-        EASY, 
-        NORMAL, 
-        HARD 
+    enum difficulties {
+        EASY,
+        NORMAL,
+        HARD
     } difficulty = NORMAL;
 
     enum states {
@@ -152,38 +141,43 @@ class MyProject : public BaseProject {
         LEFTPLAYER,
         RIGHTPLAYER
     } view = STARTSCREEN;
+    
+    enum skyBoxes {
+        SPACE,
+        CLOUDS
+    } skyBox = SPACE;
 
     float dt = 0.01f;
     std::chrono::time_point<std::chrono::system_clock> lastTime = std::chrono::system_clock::now();
     std::chrono::time_point<std::chrono::system_clock> debounceTime = std::chrono::system_clock::now();
     std::chrono::time_point<std::chrono::system_clock> currentTime;
-	
-	// Here you set the main application parameters
-	void setWindowParameters() {
-		// window size, titile and initial background
-		windowWidth = 1800;
-		windowHeight = 1000;
-		windowTitle = "Air Hockey";
-		initialBackgroundColor = {0.0f, 0.5f, 0.0f, 1.0f};
-		
-		// Descriptor pool sizes
+    
+    // Here you set the main application parameters
+    void setWindowParameters() {
+        // window size, titile and initial background
+        windowWidth = 1300;
+        windowHeight = 950;
+        windowTitle = "Air Hockey";
+        initialBackgroundColor = {0.0f, 0.5f, 0.0f, 1.0f};
+        
+        // Descriptor pool sizes
         //TODO Check the number is tight
-		uniformBlocksInPool = 24;
-		texturesInPool = 10;
-		setsInPool = 24;
-	}
-	
-	// Here you load and setup all your Vulkan objects
-	void localInit() {
-		// Descriptor Layouts [what will be passed to the shaders]
-		DSLobj.init(this, {
-					// this array contains the binding:
-					// first  element : the binding number
-					// second element : the time of element (buffer or texture)
-					// third  element : the pipeline stage where it will be used
-					{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT},
-					{1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT}
-				  });
+        uniformBlocksInPool = 30;
+        texturesInPool = 25;
+        setsInPool = 30;
+    }
+    
+    // Here you load and setup all your Vulkan objects
+    void localInit() {
+        // Descriptor Layouts [what will be passed to the shaders]
+        DSLobj.init(this, {
+                    // this array contains the binding:
+                    // first  element : the binding number
+                    // second element : the time of element (buffer or texture)
+                    // third  element : the pipeline stage where it will be used
+                    {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT},
+                    {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT}
+                  });
 
         DSLglobal.init(this, {
                     {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS},
@@ -232,10 +226,15 @@ class MyProject : public BaseProject {
 
         //Sky Box
         M_SB.init(this, "models/SkyBoxCube.obj");
-        T_SB.init(this, "textures/blue/bkg1_top.png");
-        DS_SB.init(this, &DSLobj, {
+        T_Space.init(this, "textures/blue/bkg1_bot.png");
+        T_Clouds.init(this, "textures/cloud.jpg");
+        DS_Space.init(this, &DSLobj, {
                     {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
-                    {1, TEXTURE, 0, &T_SB}
+                    {1, TEXTURE, 0, &T_Space}
+                });
+        DS_Clouds.init(this, &DSLobj, {
+                    {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
+                    {1, TEXTURE, 0, &T_Clouds}
                 });
         
         
@@ -279,9 +278,11 @@ class MyProject : public BaseProject {
         M_Table.cleanup();
         
         //SkyBox
-        DS_SB.cleanup();
-        T_SB.cleanup();
+        DS_Space.cleanup();
+        DS_Clouds.cleanup();
         M_SB.cleanup();
+        T_Space.cleanup();
+        T_Clouds.cleanup();
          
         
         //Puck
@@ -374,13 +375,24 @@ class MyProject : public BaseProject {
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers_SkyBox, offsets_SkyBox);
         vkCmdBindIndexBuffer(commandBuffer, M_SB.indexBuffer, 0,
             VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(commandBuffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
-         P1.pipelineLayout, 1, 1, &DS_SB.descriptorSets[currentImage],
-            0, nullptr);
-        vkCmdDrawIndexed(commandBuffer,
-            static_cast<uint32_t>(M_SB.indices.size()), 1, 0, 0, 0);
-        
+        switch (skyBox) {
+            case SPACE:
+                vkCmdBindDescriptorSets(commandBuffer,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                 P1.pipelineLayout, 1, 1, &DS_Space.descriptorSets[currentImage],
+                    0, nullptr);
+                vkCmdDrawIndexed(commandBuffer,
+                    static_cast<uint32_t>(M_SB.indices.size()), 1, 0, 0, 0);
+                break;
+            case CLOUDS:
+                vkCmdBindDescriptorSets(commandBuffer,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                 P1.pipelineLayout, 1, 1, &DS_Clouds.descriptorSets[currentImage],
+                    0, nullptr);
+                vkCmdDrawIndexed(commandBuffer,
+                    static_cast<uint32_t>(M_SB.indices.size()), 1, 0, 0, 0);
+                break;
+        }
         
 
         VkBuffer vertexBuffers2[] = {M_Puck.vertexBuffer};
@@ -454,7 +466,7 @@ class MyProject : public BaseProject {
             glm::lookAt(glm::vec3(0.0f, 10.0f, 0.000000001f), //Start Screen
                         glm::vec3(0.0f, 0.0f, 0.0f),
                         glm::vec3(0.0f, 1.0f, 0.0f)),
-            glm::lookAt(glm::vec3(0.0f, 2.0f, 1.0f), //Center
+            glm::lookAt(glm::vec3(0.0f, 1.5f, 2.0f), //Center
                         glm::vec3(0.0f, halfTableHeight, 0.0f),
                         glm::vec3(0.0f, 1.0f, 0.0f)),
             glm::lookAt(glm::vec3(-halfTableLength - 0.8f, cameraHeight, 0.0f), //Left player
@@ -467,26 +479,13 @@ class MyProject : public BaseProject {
 
         //** spot light **/
         //gubo.lightPos = glm::vec3(0.0f, 4.0f, -4.0f);
-        gubo.spotPosition1 = glm::vec3(-0.7f, 1.0f, 0.2f);
-        gubo.spotPosition2 = glm::vec3(-0.7f, 1.0f, -0.2f);
-        gubo.spotPosition3 = glm::vec3(0.7f, 1.0f, 0.2f);
-        gubo.spotPosition4 = glm::vec3(0.7f, 1.0f, -0.2f);
-        gubo.spotPosition5 = glm::vec3(-0.2f, 1.0f, 0.2f);
-        gubo.spotPosition6 = glm::vec3(-0.2f, 1.0f, -0.2f);
-        gubo.spotPosition7 = glm::vec3(0.2f, 1.0f, 0.2f);
-        gubo.spotPosition8 = glm::vec3(0.2f, 1.0f, -0.2f);
+        gubo.spotPosition1 = glm::vec3(0.0f, 1.0f, 0.2f);
+        gubo.spotPosition2 = glm::vec3(0.0f, 1.0f, -0.2f);
 
-        gubo.spotDirection1 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
-        gubo.spotDirection2 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
-        gubo.spotDirection3 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
-        gubo.spotDirection4 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
-        gubo.spotDirection5 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
-        gubo.spotDirection6 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
-        gubo.spotDirection7 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
-        gubo.spotDirection8 = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
+        gubo.spotDirection = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
 
         gubo.lightColor = glm::vec3(0.6f, 0.6f, 0.6f);
-        gubo.ambColor = glm::vec3(0.2f, 0.2f, 0.2f);
+        gubo.ambColor = glm::vec3(0.5f, 0.5f, 0.5f);
         gubo.coneInOutDecayExp = glm::vec4(0.92f, 0.99f, 0.8f, 2.0f);
 
         gubo.view = viewMatrices[view];
@@ -536,13 +535,22 @@ class MyProject : public BaseProject {
         vkUnmapMemory(device, DS_RightPaddle.uniformBuffersMemory[0][currentImage]);
 
         //SkyBox
-        ubo.model = glm::scale(glm::mat4(1.0f), glm::vec3(5.5f)) *
+        ubo.model = glm::scale(glm::mat4(1.0f), glm::vec3(5.0f)) *
             glm::rotate(glm::mat4(1.0), glm::radians(90.0f), glm::vec3(0, 1, 0));
-
-        vkMapMemory(device, DS_SB.uniformBuffersMemory[0][currentImage], 0,
-            sizeof(ubo), 0, &data);
-        memcpy(data, &ubo, sizeof(ubo));
-        vkUnmapMemory(device, DS_SB.uniformBuffersMemory[0][currentImage]);
+        switch (skyBox) {
+            case SPACE:
+                vkMapMemory(device, DS_Space.uniformBuffersMemory[0][currentImage], 0,
+                    sizeof(ubo), 0, &data);
+                memcpy(data, &ubo, sizeof(ubo));
+                vkUnmapMemory(device, DS_Space.uniformBuffersMemory[0][currentImage]);
+                break;
+            case CLOUDS:
+                vkMapMemory(device, DS_Clouds.uniformBuffersMemory[0][currentImage], 0,
+                    sizeof(ubo), 0, &data);
+                memcpy(data, &ubo, sizeof(ubo));
+                vkUnmapMemory(device, DS_Clouds.uniformBuffersMemory[0][currentImage]);
+                break;
+        }
 
 
         //Start Screen
@@ -583,6 +591,14 @@ class MyProject : public BaseProject {
         }
     }
 
+    void checkSkyBoxChanges(){
+        if (glfwGetKey(window, GLFW_KEY_X) && skyBox != SPACE)
+            skyBox=SPACE;
+        
+        if (glfwGetKey(window, GLFW_KEY_C) && skyBox != CLOUDS)
+            skyBox=CLOUDS;
+    }
+    
     void checkChangeDifficulty() {
         if (glfwGetKey(window, GLFW_KEY_F) && difficulty != EASY) {
             puck.vx /= 1.4;
@@ -608,55 +624,55 @@ class MyProject : public BaseProject {
     void checkPaddlesMovement() {
         switch (view) {
             case ABOVE:
-                if (glfwGetKey(window, GLFW_KEY_A)) 
+                if (glfwGetKey(window, GLFW_KEY_A))
                     lPaddle.vx -= paddleVelocity;
                 
-                if (glfwGetKey(window, GLFW_KEY_D)) 
+                if (glfwGetKey(window, GLFW_KEY_D))
                     lPaddle.vx += paddleVelocity;
           
-                if (glfwGetKey(window, GLFW_KEY_W)) 
+                if (glfwGetKey(window, GLFW_KEY_W))
                     lPaddle.vy -= paddleVelocity;
                 
-                if (glfwGetKey(window, GLFW_KEY_S)) 
+                if (glfwGetKey(window, GLFW_KEY_S))
                     lPaddle.vy += paddleVelocity;
                 
-                if (glfwGetKey(window, GLFW_KEY_LEFT)) 
+                if (glfwGetKey(window, GLFW_KEY_LEFT))
                     rPaddle.vx -= paddleVelocity;
                 
-                if (glfwGetKey(window, GLFW_KEY_RIGHT)) 
+                if (glfwGetKey(window, GLFW_KEY_RIGHT))
                     rPaddle.vx += paddleVelocity;
                 
                 if (glfwGetKey(window, GLFW_KEY_UP))  //y-axis is reversed to match z-axis later during matrix creation
                     rPaddle.vy -= paddleVelocity;
                 
-                if (glfwGetKey(window, GLFW_KEY_DOWN)) 
-                    rPaddle.vy += paddleVelocity;                
+                if (glfwGetKey(window, GLFW_KEY_DOWN))
+                    rPaddle.vy += paddleVelocity;
                 break;
             
             case LEFTPLAYER:
-                if (glfwGetKey(window, GLFW_KEY_S)) 
+                if (glfwGetKey(window, GLFW_KEY_S))
                     lPaddle.vx -= paddleVelocity;
                 
-                if (glfwGetKey(window, GLFW_KEY_W)) 
+                if (glfwGetKey(window, GLFW_KEY_W))
                     lPaddle.vx += paddleVelocity;
                 
-                if (glfwGetKey(window, GLFW_KEY_A)) 
+                if (glfwGetKey(window, GLFW_KEY_A))
                     lPaddle.vy -= paddleVelocity;
                 
-                if (glfwGetKey(window, GLFW_KEY_D)) 
+                if (glfwGetKey(window, GLFW_KEY_D))
                     lPaddle.vy += paddleVelocity;
                 
-                if (glfwGetKey(window, GLFW_KEY_DOWN)) 
+                if (glfwGetKey(window, GLFW_KEY_DOWN))
                     rPaddle.vx -= paddleVelocity;
                 
-                if (glfwGetKey(window, GLFW_KEY_UP)) 
+                if (glfwGetKey(window, GLFW_KEY_UP))
                     rPaddle.vx += paddleVelocity;
                 
                 if (glfwGetKey(window, GLFW_KEY_LEFT))   //y-axis is reversed to match z-axis later during matrix creation
                     rPaddle.vy -= paddleVelocity;
                 
-                if (glfwGetKey(window, GLFW_KEY_RIGHT)) 
-                    rPaddle.vy += paddleVelocity;                
+                if (glfwGetKey(window, GLFW_KEY_RIGHT))
+                    rPaddle.vy += paddleVelocity;
                 break;
             
             case RIGHTPLAYER:
@@ -810,7 +826,7 @@ class MyProject : public BaseProject {
                         puckRightPaddleDistanceY
                     ));
             }
-            //IMPORTANT ASSUMPTION: paddle velocity is always lower than puck velocity. Otherwise, if the paddle moved in the direction of the puck velocity, 
+            //IMPORTANT ASSUMPTION: paddle velocity is always lower than puck velocity. Otherwise, if the paddle moved in the direction of the puck velocity,
             //compenetration would occur, debouncing time could expire and a second collision could be triggered
         }
         return normalVector;
@@ -884,13 +900,15 @@ class MyProject : public BaseProject {
             (currentTime - lastTime).count();*/
 
         switch (state) {
-            case START:
+            case START:{
+                checkSkyBoxChanges();
                 if (glfwGetKey(window, GLFW_KEY_P)) {
                     view = ABOVE;
                     resetGameState();
                 }
                 break;
-            case RESET:
+        }
+            case RESET:{
                 if (glfwGetKey(window, GLFW_KEY_SPACE)) {
                     launchPuck();
                     state = PLAYING;
@@ -899,7 +917,8 @@ class MyProject : public BaseProject {
                 if (glfwGetKey(window, GLFW_KEY_V))
                     view = static_cast<views>((view + 1) % NUM_VIEWS + 1);
                 break;
-            case PLAYING:
+        }
+            case PLAYING:{
                 checkChangeDifficulty();
 
                 lPaddle.vx = 0.0f;
@@ -923,7 +942,7 @@ class MyProject : public BaseProject {
                 puck.x += puck.vx * dt;
                 puck.y += puck.vy * dt;
 
-                checkScoreOccurred(); 
+                checkScoreOccurred();
 
                 if (glfwGetKey(window, GLFW_KEY_T)) { //Test setting, set to custom position
                     puck.x = halfTableLength - puckRadius - 0.2f;
@@ -934,13 +953,13 @@ class MyProject : public BaseProject {
                 if (glfwGetKey(window, GLFW_KEY_V))
                     view = static_cast<views>((view + 1) % NUM_VIEWS + 1);
                 break;
-
-            case VICTORY:
+            }
+            case VICTORY:{
                 if (glfwGetKey(window, GLFW_KEY_R)) {
                     rightPlayerScore = 0;
                     leftPlayerScore = 0;
                     resetGameState();
-                }
+                }}
         }
 
         updateGPUData(currentImage);

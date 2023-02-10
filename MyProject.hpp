@@ -1376,6 +1376,7 @@ protected:
     void mainLoop() {
         while (!glfwWindowShouldClose(window)) {
             glfwPollEvents();
+            createCommandBuffers();
             drawFrame();
         }
         
