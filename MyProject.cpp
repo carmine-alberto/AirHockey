@@ -91,6 +91,13 @@ class MyProject : public BaseProject {
     Model M_StartScreen;
     Texture T_StartScreen;
     DescriptorSet DS_StartScreen;
+
+    //Points
+    Model M_Numbers[GOAL_SCORE];
+    Texture T_LNumbers;
+    Texture T_RNumbers;
+    DescriptorSet DS_LNumbers[GOAL_SCORE];
+    DescriptorSet DS_RNumbers[GOAL_SCORE];
     
     DescriptorSet DS_global;
 
@@ -114,7 +121,7 @@ class MyProject : public BaseProject {
 
     float puckRadius = 0.0574f / 2;
     float puckVelocity = 0.5f;
-    float initialPuckAngle = glm::radians(30.0f);
+    float initialPuckAngle = glm::radians(60.0f);
     Point puck = { 0.0f, 0.0f, 0.0f, 0.0f };
 
     float paddleRadius = 0.07;
@@ -122,6 +129,9 @@ class MyProject : public BaseProject {
     
     Point lPaddle = { -halfTableLength + paddleRadius, 0.0f, 0.0f, 0.0f };
     Point rPaddle = { halfTableLength - paddleRadius, 0.0f, 0.0f, 0.0f };
+
+    Point lScore = { -halfTableLength / 2, -halfTableWidth - 0.1f };
+    Point rScore = { halfTableLength / 2, -halfTableWidth - 0.1f };
 
     enum difficulties { 
         EASY, 
@@ -158,9 +168,9 @@ class MyProject : public BaseProject {
 		
 		// Descriptor pool sizes
         //TODO Check the number is tight
-		uniformBlocksInPool = 10;
+		uniformBlocksInPool = 24;
 		texturesInPool = 10;
-		setsInPool = 10;
+		setsInPool = 24;
 	}
 	
 	// Here you load and setup all your Vulkan objects
@@ -237,6 +247,23 @@ class MyProject : public BaseProject {
             {1, TEXTURE, 0, &T_StartScreen}
         });
 
+        //Numbers
+        /*T_LNumbers.init(this, "textures/leftNumbers.png");
+        T_RNumbers.init(this, "textures/rightNumbers.png");
+        TODO Do we want to give numbers a different texture?*/
+        for (int i = 0; i < GOAL_SCORE; i++) {
+            M_Numbers[i].init(this, "models/" + std::to_string(i) + ".obj");
+
+            DS_LNumbers[i].init(this, &DSLobj, {
+                        {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
+                        {1, TEXTURE, 0, &T_LeftPaddle}
+                });
+            DS_RNumbers[i].init(this, &DSLobj, {
+                        {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
+                        {1, TEXTURE, 0, &T_RightPaddle}
+                });
+        }
+
         DS_global.init(this, &DSLglobal, {
                     {0, UNIFORM, sizeof(globalUniformBufferObject), nullptr}
                 });
@@ -253,8 +280,8 @@ class MyProject : public BaseProject {
         
         //SkyBox
         DS_SB.cleanup();
-        M_SB.cleanup();
         T_SB.cleanup();
+        M_SB.cleanup();
          
         
         //Puck
@@ -262,18 +289,26 @@ class MyProject : public BaseProject {
         T_Puck.cleanup();
         M_Puck.cleanup();
         
+        //Numbers
+        for (int i = 0; i < GOAL_SCORE; i++) {
+            DS_LNumbers[i].cleanup();
+            DS_RNumbers[i].cleanup();
+            
+            M_Numbers[i].cleanup();
+        }
+        
         //Paddles
         DS_LeftPaddle.cleanup();
         DS_RightPaddle.cleanup();
-        M_Paddle.cleanup();
         T_LeftPaddle.cleanup();
         T_RightPaddle.cleanup();
+        M_Paddle.cleanup();
         
+
         //Start Screen
-        M_StartScreen.cleanup();
-        T_StartScreen.cleanup();
         DS_StartScreen.cleanup();
-        
+        T_StartScreen.cleanup();
+        M_StartScreen.cleanup();
         
         DS_global.cleanup();
 
@@ -380,6 +415,30 @@ class MyProject : public BaseProject {
                         0, nullptr);
         vkCmdDrawIndexed(commandBuffer,
                     static_cast<uint32_t>(M_Paddle.indices.size()), 1, 0, 0, 0);
+
+        
+        for (int i = 0; i < GOAL_SCORE; i++) {
+            VkBuffer vertexBuffers4[] = {M_Numbers[i].vertexBuffer};
+            VkDeviceSize offsets4[] = { 0 };
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers4, offsets4);
+            vkCmdBindIndexBuffer(commandBuffer, M_Numbers[i].indexBuffer, 0,
+                VK_INDEX_TYPE_UINT32);
+            vkCmdBindDescriptorSets(commandBuffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                P1.pipelineLayout, 1, 1, &DS_LNumbers[i].descriptorSets[currentImage],
+                0, nullptr);
+            vkCmdDrawIndexed(commandBuffer,
+                static_cast<uint32_t>(M_Numbers[i].indices.size()), 1, 0, 0, 0);
+
+            vkCmdBindDescriptorSets(commandBuffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                P1.pipelineLayout, 1, 1, &DS_RNumbers[i].descriptorSets[currentImage],
+                0, nullptr);
+            vkCmdDrawIndexed(commandBuffer,
+                static_cast<uint32_t>(M_Numbers[i].indices.size()), 1, 0, 0, 0);
+        }
+
+
       
 
     }
@@ -429,7 +488,6 @@ class MyProject : public BaseProject {
         gubo.lightColor = glm::vec3(0.6f, 0.6f, 0.6f);
         gubo.ambColor = glm::vec3(0.2f, 0.2f, 0.2f);
         gubo.coneInOutDecayExp = glm::vec4(0.92f, 0.99f, 0.8f, 2.0f);
-        //****//
 
         gubo.view = viewMatrices[view];
 
@@ -469,6 +527,14 @@ class MyProject : public BaseProject {
         memcpy(data, &ubo, sizeof(ubo));
         vkUnmapMemory(device, DS_LeftPaddle.uniformBuffersMemory[0][currentImage]);
 
+        // For the rPaddle
+        ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(rPaddle.x, 0.0f, rPaddle.y));
+
+        vkMapMemory(device, DS_RightPaddle.uniformBuffersMemory[0][currentImage], 0,
+            sizeof(ubo), 0, &data);
+        memcpy(data, &ubo, sizeof(ubo));
+        vkUnmapMemory(device, DS_RightPaddle.uniformBuffersMemory[0][currentImage]);
+
         //SkyBox
         ubo.model = glm::scale(glm::mat4(1.0f), glm::vec3(5.5f)) *
             glm::rotate(glm::mat4(1.0), glm::radians(90.0f), glm::vec3(0, 1, 0));
@@ -489,14 +555,32 @@ class MyProject : public BaseProject {
         memcpy(data, &ubo, sizeof(ubo));
         vkUnmapMemory(device, DS_StartScreen.uniformBuffersMemory[0][currentImage]);
 
+        const float scoreHeight = 0.2f;
+        for (int i = 0; i < GOAL_SCORE; i++) {
+            float visibleZ = 100.0f;
+            //For the lScore
+            if (i == leftPlayerScore)
+                visibleZ = lScore.y;
+            ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(lScore.x, scoreHeight, visibleZ)) *
+                glm::scale(glm::mat4(1.0f), glm::vec3(0.02f));
 
-        // For the rPaddle
-        ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(rPaddle.x, 0.0f, rPaddle.y));
+            vkMapMemory(device, DS_LNumbers[i].uniformBuffersMemory[0][currentImage], 0,
+                sizeof(ubo), 0, &data);
+            memcpy(data, &ubo, sizeof(ubo));
+            vkUnmapMemory(device, DS_LNumbers[i].uniformBuffersMemory[0][currentImage]);
+            visibleZ = 100.0f;
 
-        vkMapMemory(device, DS_RightPaddle.uniformBuffersMemory[0][currentImage], 0,
-            sizeof(ubo), 0, &data);
-        memcpy(data, &ubo, sizeof(ubo));
-        vkUnmapMemory(device, DS_RightPaddle.uniformBuffersMemory[0][currentImage]);
+            // For the rScore
+            if (i == rightPlayerScore)
+                visibleZ = rScore.y;
+            ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(rScore.x, scoreHeight, visibleZ)) *
+                glm::scale(glm::mat4(1.0f), glm::vec3(0.02f));
+
+            vkMapMemory(device, DS_RNumbers[i].uniformBuffersMemory[0][currentImage], 0,
+                sizeof(ubo), 0, &data);
+            memcpy(data, &ubo, sizeof(ubo));
+            vkUnmapMemory(device, DS_RNumbers[i].uniformBuffersMemory[0][currentImage]);
+        }
     }
 
     void checkChangeDifficulty() {
@@ -796,7 +880,7 @@ class MyProject : public BaseProject {
     // Very likely this will be where you will be writing the logic of your application.
     void updateUniformBuffer(uint32_t currentImage) {
         currentTime = std::chrono::system_clock::now();
-        /*dt = 0.01f; std::chrono::duration<float, std::chrono::seconds::period>
+        dt = 0.01f; /*std::chrono::duration<float, std::chrono::seconds::period>
             (currentTime - lastTime).count();*/
 
         switch (state) {
@@ -844,14 +928,13 @@ class MyProject : public BaseProject {
                 if (glfwGetKey(window, GLFW_KEY_T)) { //Test setting, set to custom position
                     puck.x = halfTableLength - puckRadius - 0.2f;
                     puck.y = halfTableWidth - puckRadius - 0.2f;
-                    puck.vx = 0.3f;
-                    puck.vy = 0.6f;
+                    launchPuck();
                 }
 
                 if (glfwGetKey(window, GLFW_KEY_V))
                     view = static_cast<views>((view + 1) % NUM_VIEWS + 1);
-
                 break;
+
             case VICTORY:
                 if (glfwGetKey(window, GLFW_KEY_R)) {
                     rightPlayerScore = 0;
@@ -864,7 +947,6 @@ class MyProject : public BaseProject {
 
         lastTime = currentTime;
     }
-    
 };
 
 // This is the main: probably you do not need to touch this!
