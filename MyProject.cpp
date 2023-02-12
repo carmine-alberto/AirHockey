@@ -2,9 +2,10 @@
 
 #include "MyProject.hpp"
 
-#define NUM_VIEWS 4
+#define NUM_VIEWS 3
 #define NUM_CORNERS 4
 #define GOAL_SCORE 7
+#define DEBOUNCE_THRESHOLD 0.5f
 
 //const std::string SKYBOX_TEXTURE[6] = { "textures/skybox/negx.jpg", "textures/skybox/negy.jpg", "textures/skybox/negz.jpg", "textures/skybox/posx.jpg", "textures/skybox/posy.jpg", "textures/skybox/posz.jpg" }; TODO Fix or remove
   
@@ -115,14 +116,16 @@ class MyProject : public BaseProject {
     float scoreAreaX = 0.4f;
 
     float puckRadius = 0.0574f / 2;
-    float puckVelocity = 0.5f;
+    float puckVelocity = 0.65f;
     float initialPuckAngle = glm::radians(60.0f);
     Point puck = { 0.0f, 0.0f, 0.0f, 0.0f };
+    bool completelyBounced = true;
 
     float paddleRadius = 0.07;
     float paddleVelocity = 0.2f;
     
     int winner; //1 Blue - 2 red
+    float winTextAngle = 0;
     
     Point lPaddle = { -halfTableLength + paddleRadius, 0.0f, 0.0f, 0.0f };
     Point rPaddle = { halfTableLength - paddleRadius, 0.0f, 0.0f, 0.0f };
@@ -339,11 +342,11 @@ class MyProject : public BaseProject {
         M_StartScreen.cleanup();
         
         //Win Text
-        M_BlueWin.cleanup();
-        M_RedWin.cleanup();
-        T_Win.cleanup();
         DS_BlueWin.cleanup();
         DS_RedWin.cleanup();
+        T_Win.cleanup();
+        M_BlueWin.cleanup();
+        M_RedWin.cleanup();
         
         DS_global.cleanup();
 
@@ -515,17 +518,15 @@ class MyProject : public BaseProject {
     }
 
     void updateGPUData(uint32_t currentImage) {
-        static auto startTime = std::chrono::high_resolution_clock::now();
-        auto current = std::chrono::high_resolution_clock::now();
-        float time = std::chrono::duration<float, std::chrono::seconds::period>
-                    (current - startTime).count();
+        
+
         globalUniformBufferObject gubo{};
         UniformBufferObject ubo{};
 
         void* data;
 
         float cameraHeight = 1.0f;
-        glm::mat4 viewMatrices[NUM_VIEWS + 1] = { //TODO Refactor into different states
+        glm::mat4 viewMatrices[NUM_VIEWS + 2] = { //TODO Refactor into different states
             glm::lookAt(glm::vec3(0.0f, 10.0f, 0.000000001f), //Start Screen
                         glm::vec3(0.0f, 0.0f, 0.0f),
                         glm::vec3(0.0f, 1.0f, 0.0f)),
@@ -538,7 +539,7 @@ class MyProject : public BaseProject {
             glm::lookAt(glm::vec3(halfTableLength + 0.8f, cameraHeight, 0.0f), //Right player
                         glm::vec3(0.0f, halfTableHeight, 0.0f),
                         glm::vec3(0.0f, 1.0f, 0.0f)),
-            glm::lookAt(glm::vec3(0.0f, 0.8f, 2.4f), //Center
+            glm::lookAt(glm::vec3(0.0f, 0.8f, 2.4f), //Win Screen
                         glm::vec3(0.0f, halfTableHeight, 0.0f),
                         glm::vec3(0.0f, 1.0f, 0.0f)),
         };
@@ -657,12 +658,13 @@ class MyProject : public BaseProject {
         }
         
         //Win
-        if(state==VICTORY){
+        if(state == VICTORY) {
+            winTextAngle += dt;
             switch (winner) {
                 case 1:
                     ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, 0.2f))*
                     glm::scale(glm::mat4(1.0),glm::vec3(0.2f));
-                    ubo.model = glm::rotate(ubo.model, glm::radians(30.0f) * cos(time/2), glm::vec3(0.0f, 1.0f, 0.0f));
+                    ubo.model = glm::rotate(ubo.model, glm::radians(30.0f) * cos(winTextAngle/2), glm::vec3(0.0f, 1.0f, 0.0f));
                                 
                     vkMapMemory(device, DS_BlueWin.uniformBuffersMemory[0][currentImage], 0,
                                         sizeof(ubo), 0, &data);
@@ -672,8 +674,8 @@ class MyProject : public BaseProject {
                     
                 case 2:
                     ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, 0.2f))*
-                    glm::scale(glm::mat4(1.0),glm::vec3(0.2f));;
-                    ubo.model = glm::rotate(ubo.model, glm::radians(30.0f) * cos(time/2), glm::vec3(0.0f, 1.0f, 0.0f));
+                    glm::scale(glm::mat4(1.0),glm::vec3(0.2f));
+                    ubo.model = glm::rotate(ubo.model, glm::radians(30.0f) * cos(winTextAngle/2), glm::vec3(0.0f, 1.0f, 0.0f));
                                 
                     vkMapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage], 0,
                                         sizeof(ubo), 0, &data);
@@ -682,30 +684,23 @@ class MyProject : public BaseProject {
                     break;
             }
         }
-        else{
-            switch (winner) {
-                case 1:
-                    ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.4f, 0.2f))*
-                    glm::scale(glm::mat4(1.0),glm::vec3(0.2f));
-                    //ubo.model = glm::rotate(ubo.model, glm::radians(30.0f) * cos(time/2), glm::vec3(0.0f, 1.0f, 0.0f));
+        else {
+            ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.4f, 0.2f))*
+            glm::scale(glm::mat4(1.0),glm::vec3(0.2f));
                                 
-                    vkMapMemory(device, DS_BlueWin.uniformBuffersMemory[0][currentImage], 0,
-                                        sizeof(ubo), 0, &data);
-                    memcpy(data, &ubo, sizeof(ubo));
-                    vkUnmapMemory(device, DS_BlueWin.uniformBuffersMemory[0][currentImage]);
-                    break;
+            vkMapMemory(device, DS_BlueWin.uniformBuffersMemory[0][currentImage], 0,
+                                sizeof(ubo), 0, &data);
+            memcpy(data, &ubo, sizeof(ubo));
+            vkUnmapMemory(device, DS_BlueWin.uniformBuffersMemory[0][currentImage]);
                     
-                case 2:
-                    ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.4f, 0.2f))*
-                    glm::scale(glm::mat4(1.0),glm::vec3(0.2f));;
-                    //ubo.model = glm::rotate(ubo.model, glm::radians(30.0f) * cos(time/2), glm::vec3(0.0f, 1.0f, 0.0f));
+            ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.4f, 0.2f))*
+            glm::scale(glm::mat4(1.0),glm::vec3(0.2f));
                                 
-                    vkMapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage], 0,
-                                        sizeof(ubo), 0, &data);
-                    memcpy(data, &ubo, sizeof(ubo));
-                    vkUnmapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage]);
-                    break;
-            }
+            vkMapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage], 0,
+                                sizeof(ubo), 0, &data);
+            memcpy(data, &ubo, sizeof(ubo));
+            vkUnmapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage]);
+            
         }
         
     }
@@ -899,55 +894,73 @@ class MyProject : public BaseProject {
 
     glm::vec2 calculateBounceDirection() {
         glm::vec2 normalVector = glm::vec2(0.0f, 0.0f);
-        std::chrono::duration<float> debounceInterval = (currentTime - debounceTime);
         //Corner collision detection code
+        
+        //Used for puck-paddle collision check
+        const float puckPaddleMinDistance = paddleRadius + puckRadius;
+        float puckLeftPaddleDistanceX = puck.x - lPaddle.x;
+        float puckLeftPaddleDistanceY = puck.y - lPaddle.y;
 
-        if (debounceInterval.count() > 0.05f) {
-            float relativeX = abs(puck.x) - abs(cornerCircleCenter.x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
-            float relativeY = abs(puck.y) - cornerCircleRadius;
-            const float relativeRadius = cornerCircleRadius - puckRadius;
+        float puckRightPaddleDistanceX = puck.x - rPaddle.x;
+        float puckRightPaddleDistanceY = puck.y - rPaddle.y;
 
-            if (relativeX > 0 &&
-                relativeY > 0 &&
-                (pow(relativeX, 2) + pow(relativeY, 2) >= pow(relativeRadius, 2)))
+        //Used for borders-puck collision check
+        const float relativeRadius = cornerCircleRadius - puckRadius;
+        float relativeX = abs(puck.x) - abs(cornerCircleCenter.x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
+        float relativeY = abs(puck.y) - cornerCircleRadius;
+
+        if (relativeX > 0 &&
+            relativeY > 0 &&
+            (pow(relativeX, 2) + pow(relativeY, 2) >= pow(relativeRadius, 2))) {
+            if (completelyBounced) {
                 normalVector = glm::normalize(glm::vec2(
                     relativeX * ((puck.x < 0) ? 1.0f : -1.0f), //If this parentheses are removed after *, it breaks down awfully. What does it get assigned exactly x) ?
                     relativeY * ((puck.y < 0) ? 1.0f : -1.0f)
                 ));
-                
-            //Each case has to be handled separately otherwise it's not possible to determine which normal vector has to be used
-            else if (puck.y >= halfTableWidth - puckRadius)  //UPPER SIDE
-                normalVector = glm::vec2(0.0f, 1.0f);
-            else if (puck.y <= -halfTableWidth + puckRadius)
-                normalVector = glm::vec2(0.0f, -1.0f); //LOWER SIDE
+                completelyBounced = false;
+            }
+        }
+        //Each case has to be handled separately otherwise it's not possible to determine which normal vector has to be used
+        else if (puck.y >= halfTableWidth - puckRadius) { //UPPER SIDE
+            if (completelyBounced) {
+                normalVector = glm::vec2(0.0f, -1.0f);
+                completelyBounced = false;
+            }
+        }
+        else if (puck.y <= -halfTableWidth + puckRadius) {
+            if (completelyBounced) {
+                normalVector = glm::vec2(0.0f, 1.0f); //LOWER SIDE
+                completelyBounced = false;
+            }
             /* TODO Handle these cases - hit on edges
             else if (puck.x <= -halfTableLength + puckRadius)
                 normalVector = glm::vec2(1.0f, 0.0f); //LEFT SIDE
             else if (puck.x >= halfTableLength - puckRadius)
                 normalVector = glm::vec2(-1.0f, 0.0f); //RIGHT SIDE
                 */
-            else {
-                const float puckPaddleMinDistance = paddleRadius + puckRadius;
-                float puckLeftPaddleDistanceX = puck.x - lPaddle.x;
-                float puckLeftPaddleDistanceY = puck.y - lPaddle.y;
-
-                float puckRightPaddleDistanceX = puck.x - rPaddle.x;
-                float puckRightPaddleDistanceY = puck.y - rPaddle.y;
-
-                if (pow(puckLeftPaddleDistanceX, 2) + pow(puckLeftPaddleDistanceY, 2) <= pow(puckPaddleMinDistance, 2))
-                    normalVector = glm::normalize(glm::vec2(
-                        puckLeftPaddleDistanceX, //correct sign included in the distances calculated above
-                        puckLeftPaddleDistanceY
-                    ));
-                else if (pow(puckRightPaddleDistanceX, 2) + pow(puckRightPaddleDistanceY, 2) <= pow(puckPaddleMinDistance, 2))
-                    normalVector = glm::normalize(glm::vec2(
-                        puckRightPaddleDistanceX, //correct sign included in the distances calculated above
-                        puckRightPaddleDistanceY
-                    ));
-            }
-            //IMPORTANT ASSUMPTION: paddle velocity is always lower than puck velocity. Otherwise, if the paddle moved in the direction of the puck velocity,
-            //compenetration would occur, debouncing time could expire and a second collision could be triggered
         }
+        else if (pow(puckLeftPaddleDistanceX, 2) + pow(puckLeftPaddleDistanceY, 2) <= pow(puckPaddleMinDistance, 2)) {
+            if (completelyBounced) {
+                normalVector = glm::normalize(glm::vec2(
+                    puckLeftPaddleDistanceX, //correct sign included in the distances calculated above
+                    puckLeftPaddleDistanceY
+                ));
+                completelyBounced = false;
+            }
+        }
+        else if (pow(puckRightPaddleDistanceX, 2) + pow(puckRightPaddleDistanceY, 2) <= pow(puckPaddleMinDistance, 2)) {
+            if (completelyBounced) {
+                normalVector = glm::normalize(glm::vec2(
+                    puckRightPaddleDistanceX, //correct sign included in the distances calculated above
+                    puckRightPaddleDistanceY
+                ));
+                completelyBounced = false;
+            }
+        } else
+            completelyBounced = true;
+        //IMPORTANT ASSUMPTION: paddle velocity is always lower than puck velocity. Otherwise, if the paddle moved in the direction of the puck velocity,
+        //compenetration would occur, debouncing time could expire and a second collision could be triggered
+        
         return normalVector;
     }
 
@@ -962,13 +975,24 @@ class MyProject : public BaseProject {
     //Normalize v, flip it (-1) and extract the modulus -> If defined separately at 266 (M * component), modulus is given  --> UPDATE: Normalization not required if normal is provided normalized (or is normalized below)
     //Dot product with normal, 2*result - initial normalized vector, times M
     void updatePuckVelocity(glm::vec2 &normalVector) {
-        glm::vec2 flippedPuckVel = glm::vec2(-puck.vx, -puck.vy);
-        float velProjectionModulus = dot(flippedPuckVel, normalVector); //Flip puck.v, as in Phong
-        glm::vec2 velProjection = glm::vec2(normalVector * velProjectionModulus);
+        
+        glm::vec2 flippedPuckVel = glm::vec2(-puck.vx, -puck.vy);//Flip puck.v, as in Phong
+        float velProjectionModulus = dot(flippedPuckVel, normalVector); 
 
-        glm::vec2 finalVelocity = glm::vec2(
-            2.0f * velProjection - flippedPuckVel
-        );
+        glm::vec2 finalVelocity; 
+        if (velProjectionModulus >= 0) { //Collision occurred while paddle was still - no external forces applied
+            glm::vec2 velProjection = glm::vec2(normalVector * velProjectionModulus);
+
+            finalVelocity = glm::vec2(
+                2.0f * velProjection - flippedPuckVel
+            );
+        } else 
+            //For the sake of simplicity, let's assume that, when an external force is applied, 
+            //it's strong enough to force the puck along the paddle radius
+            finalVelocity = glm::vec2(
+                normalVector * puckVelocity
+            );
+       
 
         puck.vx = finalVelocity.x;
         puck.vy = finalVelocity.y;
@@ -993,6 +1017,15 @@ class MyProject : public BaseProject {
         }
     }
 
+    void checkChangeView() {
+        float debounceInterval = std::chrono::duration<float>(currentTime - debounceTime).count();
+
+        if (glfwGetKey(window, GLFW_KEY_V) && debounceInterval > DEBOUNCE_THRESHOLD) {
+            view = static_cast<views>((view + 1) % NUM_VIEWS + 1);
+            debounceTime = currentTime;
+        }
+    }
+
     void resetGameState() {
         puck.x = 0.0f;
         puck.y = 0.0f;
@@ -1006,48 +1039,44 @@ class MyProject : public BaseProject {
         rPaddle.y = 0.0f;
 
         state = RESET;
-        view=ABOVE;
     }
 
     void endGame() {
         state = VICTORY;
         //resetGameState();
-        //TODO Show stuff. If not done here, remove method altogether, move state change to resetGameState
+        //TODO Show stuff. If not done here, remove method altogether, move state change to checkScoreOccurred
     }
 
     // Here is where you update the uniforms.
     // Very likely this will be where you will be writing the logic of your application.
     void updateUniformBuffer(uint32_t currentImage) {
         currentTime = std::chrono::system_clock::now();
-        dt = 0.01f; /*std::chrono::duration<float, std::chrono::seconds::period>
-            (currentTime - lastTime).count();*/
+        dt = std::chrono::duration<float>(currentTime - lastTime).count() * 1.5f;
 
         /*if (glfwGetKey(window, GLFW_KEY_ESCAPE))
             glfwSetWindowMonitor(window, NULL, 100, 20, windowWidth, windowHeight, 120);
         TODO: if we want to add fullscreen -> windowed, we have to recreate the swapChain. 
         See https://vulkan-tutorial.com/Drawing_a_triangle/Swap_chain_recreation
         */
+        checkSkyBoxChanges();
         switch (state) {
-            case START:{
+            case START:
                 if (glfwGetKey(window, GLFW_KEY_P)) {
                     view = ABOVE;
                     resetGameState();
                 }
                 break;
-        }
-            case RESET:{
-                checkSkyBoxChanges();
+    
+            case RESET:
+                checkChangeDifficulty();
                 if (glfwGetKey(window, GLFW_KEY_SPACE)) {
                     launchPuck();
                     state = PLAYING;
                 }
-
-                if (glfwGetKey(window, GLFW_KEY_V))
-                    view = static_cast<views>((view + 1) % NUM_VIEWS + 1);
+                checkChangeView();
                 break;
-        }
-            case PLAYING:{
-                checkSkyBoxChanges();
+        
+            case PLAYING:               
                 checkChangeDifficulty();
 
                 lPaddle.vx = 0.0f;
@@ -1064,8 +1093,7 @@ class MyProject : public BaseProject {
 
                 if (glm::length(normalVector) != 0.0f) { //Collision detected
                     updatePuckVelocity(normalVector);
-
-                    debounceTime = currentTime;
+                    completelyBounced = false;   
                 }
 
                 puck.x += puck.vx * dt;
@@ -1078,18 +1106,20 @@ class MyProject : public BaseProject {
                     puck.y = halfTableWidth - puckRadius - 0.2f;
                     launchPuck();
                 }
-
-                if (glfwGetKey(window, GLFW_KEY_V))
-                    view = static_cast<views>((view + 1) % NUM_VIEWS + 1);
+                checkChangeView();
                 break;
-            }
-            case VICTORY:{
+            
+            case VICTORY:
+                static views oldView; //TODO Ugly stuff right here, the idea is keeping the same view as before at restart
+                if (view != ENDGAME)
+                    oldView = view;
                 view = ENDGAME;
                 if (glfwGetKey(window, GLFW_KEY_R)) {
                     rightPlayerScore = 0;
                     leftPlayerScore = 0;
+                    view = oldView;
                     resetGameState();
-                }}
+                }
         }
 
         updateGPUData(currentImage);

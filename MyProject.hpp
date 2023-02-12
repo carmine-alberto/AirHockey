@@ -951,7 +951,7 @@ protected:
         VkCommandPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
-        poolInfo.flags = 0; // Optional
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // Optional TODO Added this
         
         VkResult result = vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool);
         if (result != VK_SUCCESS) {
@@ -1284,20 +1284,23 @@ protected:
     // Lesson 22.5 (and 13)
     void createCommandBuffers() {
         // Lesson 13
-        commandBuffers.resize(swapChainFramebuffers.size());
         
-        VkCommandBufferAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.commandPool = commandPool;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandBufferCount = (uint32_t) commandBuffers.size();
-        
-        VkResult result = vkAllocateCommandBuffers(device, &allocInfo,
+        //if (commandBuffers.size() != swapChainFramebuffers.size()) { //if CBs don't exist, i.e. don't have the sCF size, allocate them
+            commandBuffers.resize(swapChainFramebuffers.size());
+
+            VkCommandBufferAllocateInfo allocInfo{};
+            allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+            allocInfo.commandPool = commandPool;
+            allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
+
+            VkResult result = vkAllocateCommandBuffers(device, &allocInfo,
                 commandBuffers.data());
-        if (result != VK_SUCCESS) {
-             PrintVkError(result);
-            throw std::runtime_error("failed to allocate command buffers!");
-        }
+            if (result != VK_SUCCESS) {
+                PrintVkError(result);
+                throw std::runtime_error("failed to allocate command buffers!");
+            }
+        //}
         
         // Lesson 22.5 --- Draw calls
         // This is where the commands that actually draw something on screen are!
