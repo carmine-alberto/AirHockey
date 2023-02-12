@@ -7,18 +7,19 @@
 #define GOAL_SCORE 7
 #define DEBOUNCE_THRESHOLD 0.5f
 
-//const std::string SKYBOX_TEXTURE[6] = { "textures/skybox/negx.jpg", "textures/skybox/negy.jpg", "textures/skybox/negz.jpg", "textures/skybox/posx.jpg", "textures/skybox/posy.jpg", "textures/skybox/posz.jpg" }; TODO Fix or remove
   
+const SkyBoxModel  SkyBoxToLoad1 = {"SkyBoxCube.obj", OBJ, {"skybox/space/right.png", "skybox/space/left.png", "skybox/space/bot.png", "skybox/space/top.png", "skybox/space/front.png", "skybox/space/back.png"}};
+const SkyBoxModel  SkyBoxToLoad2 = {"SkyBoxCube.obj", OBJ, {"skybox/cloudy/px.png", "skybox/cloudy/nx.png", "skybox/cloudy/py.png", "skybox/cloudy/ny.png", "skybox/cloudy/pz.png", "skybox/cloudy/nz.png"}};
 
 // The uniform buffer object used in this example
 struct globalUniformBufferObject {
-    alignas(16) glm::mat4 view;
+        alignas(16) glm::mat4 view;
         alignas(16) glm::mat4 proj;
         alignas(16) glm::vec3 lightColor;
         alignas(16) glm::vec3 lightPos;
         alignas(16) glm::vec3 ambColor;
         alignas(16) glm::vec4 coneInOutDecayExp;
-        alignas(16) glm::vec3 spotPosition1;  
+        alignas(16) glm::vec3 spotPosition1;
         alignas(16) glm::vec3 spotPosition2;
         alignas(16) glm::vec3 spotDirection;
         alignas(16) glm::vec3 eyePos;
@@ -28,6 +29,11 @@ struct UniformBufferObject {
     alignas(16) glm::mat4 model;
 };
 
+struct SkyBoxUniformBufferObject {
+ alignas(16) glm::mat4 mvpMat;
+ alignas(16) glm::mat4 mMat;
+ alignas(16) glm::mat4 nMat;
+};
 
 
 struct Point {
@@ -50,19 +56,26 @@ class MyProject : public BaseProject {
     // Pipelines [Shader couples]
     Pipeline P1;
     //Pipeline P_SB;
+    
+    // SkyBox
+    DescriptorSetLayout DSL_SB;
+    Pipeline P_SB;
+  
 
     //SkyBox
-    Model M_SB;
-    Texture T_Clouds;
-    Texture T_Space;
-    DescriptorSet DS_Space;
-    DescriptorSet DS_Clouds;
+    ModelData M_SB;
+    TextureData T_Clouds;
+    TextureData T_Space;
+    DescriptorSetSkyBox DS_Space;
+    DescriptorSetSkyBox DS_Clouds;
     
      
     // Models, textures and Descriptors (values assigned to the uniforms)
     Model M_Table;
-    Texture T_Table;
-    DescriptorSet DS_Table;    // instance DSLobj
+    Texture T_TableS;
+    Texture T_TableC;
+    DescriptorSet DS_TableS;
+    DescriptorSet DS_TableC;    // instance DSLobj
     
     //Puck
     Model M_Puck;
@@ -76,10 +89,12 @@ class MyProject : public BaseProject {
     DescriptorSet DS_LeftPaddle;    // instance DSLobj
     DescriptorSet DS_RightPaddle;    // instance DSLobj
 
-    //Start Screen
+    //Start Screens
     Model M_StartScreen;
     Texture T_StartScreen;
+    Texture T_Settings;
     DescriptorSet DS_StartScreen;
+    DescriptorSet DS_Settings;
 
     //Points
     Model M_Numbers[GOAL_SCORE];
@@ -98,8 +113,8 @@ class MyProject : public BaseProject {
     DescriptorSet DS_global;
 
     //Other variables
-    int leftPlayerScore = 6;
-    int rightPlayerScore = 6;
+    int leftPlayerScore = 0;
+    int rightPlayerScore = 0;
 
     //Assumption: the table is centered in (0, 0)
     float halfTableLength = 1.7428f / 2;
@@ -141,18 +156,18 @@ class MyProject : public BaseProject {
 
     enum states {
         START,
+        SETTINGS,
         RESET,
         PLAYING,
         VICTORY
     } state = START;
 
     enum views {
-        STARTSCREEN,
         ABOVE,
         LEFTPLAYER,
         RIGHTPLAYER,
         ENDGAME
-    } view = STARTSCREEN;
+    } view = ABOVE;
     
     enum skyBoxes {
         SPACE,
@@ -199,12 +214,30 @@ class MyProject : public BaseProject {
         // Pipelines [Shader couples]
         // The last array, is a vector of pointer to the layouts of the sets that will
         // be used in this pipeline. The first element will be set 0, and so on..
-        P1.init(this, "shaders/vert.spv", "shaders/frag.spv", {&DSLglobal, &DSLobj});
+        P1.init(this, "shaders/vert.spv", "shaders/frag.spv", {&DSLglobal, &DSLobj}, VK_COMPARE_OP_LESS);
+        
+        DSL_SB.init(this, {
+                            {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT},
+                            {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT}
+                          });
+        P_SB.init(this, "shaders/SkyBoxVert.spv", "shaders/SkyBoxFrag.spv", {&DSL_SB}, VK_COMPARE_OP_LESS_OR_EQUAL);
+        M_SB.init(this, SkyBoxToLoad1);
+        T_Space.init(this, SkyBoxToLoad1);
+        T_Clouds.init(this, SkyBoxToLoad2);
+        DS_Space.init(this, &DSL_SB, {
+                            {0, UNIFORM, sizeof(SkyBoxUniformBufferObject), nullptr},
+                            {1, TEXTURE, 0, &T_Space}
+                        });
+        DS_Clouds.init(this, &DSL_SB, {
+                            {0, UNIFORM, sizeof(SkyBoxUniformBufferObject), nullptr},
+                            {1, TEXTURE, 0, &T_Clouds}
+                        });
         
         // Models, textures and Descriptors (values assigned to the uniforms)
         M_Table.init(this, "models/table.obj");
-        T_Table.init(this, "textures/airHockey3.png");
-        DS_Table.init(this, &DSLobj, {
+        T_TableS.init(this, "textures/airHockey3.png");
+        T_TableC.init(this, "textures/airHockey4.png");
+        DS_TableS.init(this, &DSLobj, {
         // the second parameter, is a pointer to the Uniform Set Layout of this set
         // the last parameter is an array, with one element per binding of the set.
         // first  elmenet : the binding number
@@ -212,7 +245,11 @@ class MyProject : public BaseProject {
         // third  element : only for UNIFORMs, the size of the corresponding C++ object
         // fourth element : only for TEXTUREs, the pointer to the corresponding texture object
                     {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
-                    {1, TEXTURE, 0, &T_Table}
+                    {1, TEXTURE, 0, &T_TableS}
+                });
+        DS_TableC.init(this, &DSLobj, {
+                    {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
+                    {1, TEXTURE, 0, &T_TableC}
                 });
     
         //Puck
@@ -236,7 +273,7 @@ class MyProject : public BaseProject {
                     {1, TEXTURE, 0, &T_RightPaddle}
                 });
 
-        //Sky Box
+        /*Sky Box
         M_SB.init(this, "models/SkyBoxCube.obj");
         T_Space.init(this, "textures/blue/bkg1_bot.png");
         T_Clouds.init(this, "textures/cloud.jpg");
@@ -248,14 +285,19 @@ class MyProject : public BaseProject {
                     {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
                     {1, TEXTURE, 0, &T_Clouds}
                 });
-        
+        */
         
         //Start Screen
         M_StartScreen.init(this, "models/ground.obj");
         T_StartScreen.init(this, "textures/StartScreen.png");
+        T_Settings.init(this, "textures/Settings.png");
         DS_StartScreen.init(this, &DSLobj, {
             {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
             {1, TEXTURE, 0, &T_StartScreen}
+        });
+        DS_Settings.init(this, &DSLobj, {
+            {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
+            {1, TEXTURE, 0, &T_Settings}
         });
 
         //Numbers
@@ -302,18 +344,24 @@ class MyProject : public BaseProject {
     // Here you destroy all the objects you created!
     //TODO Check everything is destroyed properly
     void localCleanup() {
-        //Table
-        DS_Table.cleanup();
-        T_Table.cleanup();
-        M_Table.cleanup();
         
         //SkyBox
         DS_Space.cleanup();
         DS_Clouds.cleanup();
-        M_SB.cleanup();
         T_Space.cleanup();
         T_Clouds.cleanup();
-         
+        M_SB.cleanup();
+        P_SB.cleanup();
+        DSL_SB.cleanup();
+        
+        //Table
+        DS_TableC.cleanup();
+        DS_TableS.cleanup();
+        T_TableC.cleanup();
+        T_TableS.cleanup();
+        M_Table.cleanup();
+        
+        
         
         //Puck
         DS_Puck.cleanup();
@@ -338,7 +386,9 @@ class MyProject : public BaseProject {
 
         //Start Screen
         DS_StartScreen.cleanup();
+        DS_Settings.cleanup();
         T_StartScreen.cleanup();
+        T_Settings.cleanup();
         M_StartScreen.cleanup();
         
         //Win Text
@@ -355,12 +405,42 @@ class MyProject : public BaseProject {
         DSLglobal.cleanup();
         DSLobj.cleanup();
         
+        
     }
     
     // Here it is the creation of the command buffer:
     // You send to the GPU all the objects you want to draw,
     // with their buffers and textures
     void populateCommandBuffer(VkCommandBuffer commandBuffer, int currentImage) {
+        
+        
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        P_SB.graphicsPipeline);
+        VkBuffer vertexBuffers_SB[] = {M_SB.vertexBuffer};
+        VkDeviceSize offsets_SB[] = {0};
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers_SB, offsets_SB);
+        vkCmdBindIndexBuffer(commandBuffer, M_SB.indexBuffer, 0,
+                                        VK_INDEX_TYPE_UINT32);
+        switch (skyBox) {
+            case SPACE:
+                vkCmdBindDescriptorSets(commandBuffer,
+                                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        P_SB.pipelineLayout, 0, 1, &DS_Space.descriptorSets[currentImage],
+                                        0, nullptr);
+                vkCmdDrawIndexed(commandBuffer,
+                                         static_cast<uint32_t>(M_SB.indices.size()), 1, 0, 0, 0);
+                break;
+            case CLOUDS:
+                vkCmdBindDescriptorSets(commandBuffer,
+                                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        P_SB.pipelineLayout, 0, 1, &DS_Clouds.descriptorSets[currentImage],
+                                        0, nullptr);
+                vkCmdDrawIndexed(commandBuffer,
+                                         static_cast<uint32_t>(M_SB.indices.size()), 1, 0, 0, 0);
+                break;
+        }
+        
+        
                 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                 P1.graphicsPipeline);
@@ -369,7 +449,6 @@ class MyProject : public BaseProject {
                         P1.pipelineLayout, 0, 1, &DS_global.descriptorSets[currentImage],
                         0, nullptr);
         
-    
         
        
         VkBuffer vertexBuffers[] = {M_Table.vertexBuffer};
@@ -380,33 +459,58 @@ class MyProject : public BaseProject {
         vkCmdBindIndexBuffer(commandBuffer, M_Table.indexBuffer, 0,
                                 VK_INDEX_TYPE_UINT32);
 
-        // property .pipelineLayout of a pipeline contains its layout.
-        // property .descriptorSets of a descriptor set contains its elements.
-        vkCmdBindDescriptorSets(commandBuffer,
-                        VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        P1.pipelineLayout, 1, 1, &DS_Table.descriptorSets[currentImage],
-                        0, nullptr);
-                        
-        // property .indices.size() of models, contains the number of triangles * 3 of the mesh.
-        vkCmdDrawIndexed(commandBuffer,
-                    static_cast<uint32_t>(M_Table.indices.size()), 1, 0, 0, 0);
+        switch (skyBox) {
+            case SPACE:
+                vkCmdBindDescriptorSets(commandBuffer,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                P1.pipelineLayout, 1, 1, &DS_TableS.descriptorSets[currentImage],
+                                0, nullptr);
+                                
+                // property .indices.size() of models, contains the number of triangles * 3 of the mesh.
+                vkCmdDrawIndexed(commandBuffer,
+                            static_cast<uint32_t>(M_Table.indices.size()), 1, 0, 0, 0);
 
-        
+                break;
+            case CLOUDS:
+                vkCmdBindDescriptorSets(commandBuffer,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                P1.pipelineLayout, 1, 1, &DS_TableC.descriptorSets[currentImage],
+                                0, nullptr);
+                                
+                // property .indices.size() of models, contains the number of triangles * 3 of the mesh.
+                vkCmdDrawIndexed(commandBuffer,
+                            static_cast<uint32_t>(M_Table.indices.size()), 1, 0, 0, 0);
+
+                break;
+        }
+                
         VkBuffer vertexBuffers_SC[] = {M_StartScreen.vertexBuffer};
         VkDeviceSize offsets_SC[] = {0};
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers_SC, offsets_SC);
         vkCmdBindIndexBuffer(commandBuffer, M_StartScreen.indexBuffer, 0,
                                 VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(commandBuffer,
-                        VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        P1.pipelineLayout, 1, 1, &DS_StartScreen.descriptorSets[currentImage],
-                        0, nullptr);
-        vkCmdDrawIndexed(commandBuffer,
-                    static_cast<uint32_t>(M_StartScreen.indices.size()), 1, 0, 0, 0);
+        switch (state) {
+            case START:
+                vkCmdBindDescriptorSets(commandBuffer,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                P1.pipelineLayout, 1, 1, &DS_StartScreen.descriptorSets[currentImage],
+                                0, nullptr);
+                vkCmdDrawIndexed(commandBuffer,
+                            static_cast<uint32_t>(M_StartScreen.indices.size()), 1, 0, 0, 0);
+                break;
+            case SETTINGS:
+                vkCmdBindDescriptorSets(commandBuffer,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                P1.pipelineLayout, 1, 1, &DS_Settings.descriptorSets[currentImage],
+                                0, nullptr);
+                vkCmdDrawIndexed(commandBuffer,
+                            static_cast<uint32_t>(M_StartScreen.indices.size()), 1, 0, 0, 0);
+                break;
+        }
         
         
         
-        //SkyBox buffer initialization
+        /*SkyBox buffer initialization
         VkBuffer vertexBuffers_SkyBox[] = { M_SB.vertexBuffer };
         VkDeviceSize offsets_SkyBox[] = { 0 };
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers_SkyBox, offsets_SkyBox);
@@ -430,6 +534,7 @@ class MyProject : public BaseProject {
                     static_cast<uint32_t>(M_SB.indices.size()), 1, 0, 0, 0);
                 break;
         }
+        */
         
 
         VkBuffer vertexBuffers2[] = {M_Puck.vertexBuffer};
@@ -514,7 +619,6 @@ class MyProject : public BaseProject {
         vkCmdDrawIndexed(commandBuffer,
             static_cast<uint32_t>(M_RedWin.indices.size()), 1, 0, 0, 0);
       
-
     }
 
     void updateGPUData(uint32_t currentImage) {
@@ -522,14 +626,13 @@ class MyProject : public BaseProject {
 
         globalUniformBufferObject gubo{};
         UniformBufferObject ubo{};
+        // updates SkyBox uniforms
+        SkyBoxUniformBufferObject subo{};
 
         void* data;
 
         float cameraHeight = 1.0f;
-        glm::mat4 viewMatrices[NUM_VIEWS + 2] = { //TODO Refactor into different states
-            glm::lookAt(glm::vec3(0.0f, 10.0f, 0.000000001f), //Start Screen
-                        glm::vec3(0.0f, 0.0f, 0.0f),
-                        glm::vec3(0.0f, 1.0f, 0.0f)),
+        glm::mat4 viewMatrices[NUM_VIEWS + 1] = { //TODO Refactor into different state
             glm::lookAt(glm::vec3(0.0f, 1.5f, 2.0f), //Center
                         glm::vec3(0.0f, halfTableHeight, 0.0f),
                         glm::vec3(0.0f, 1.0f, 0.0f)),
@@ -539,21 +642,24 @@ class MyProject : public BaseProject {
             glm::lookAt(glm::vec3(halfTableLength + 0.8f, cameraHeight, 0.0f), //Right player
                         glm::vec3(0.0f, halfTableHeight, 0.0f),
                         glm::vec3(0.0f, 1.0f, 0.0f)),
-            glm::lookAt(glm::vec3(0.0f, 0.8f, 2.4f), //Win Screen
+            glm::lookAt(glm::vec3(0.0f, 0.8f, 2.4f), //Victory; TODO Use views above and rotate winText
                         glm::vec3(0.0f, halfTableHeight, 0.0f),
                         glm::vec3(0.0f, 1.0f, 0.0f)),
         };
+        
+        
 
         //** spot light **/
         //gubo.lightPos = glm::vec3(0.0f, 4.0f, -4.0f);
-        gubo.spotPosition1 = glm::vec3(0.0f, 1.0f, 0.2f);
-        gubo.spotPosition2 = glm::vec3(0.0f, 1.0f, -0.2f);
+        gubo.spotPosition1 = glm::vec3(0.0f, 1.0f, 0.3f);
+        gubo.spotPosition2 = glm::vec3(0.0f, 1.0f, -0.3f);
 
+        //gubo.spotDirection = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
         gubo.spotDirection = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
 
         gubo.lightColor = glm::vec3(0.6f, 0.6f, 0.6f);
-        gubo.ambColor = glm::vec3(0.5f, 0.5f, 0.5f);
-        gubo.coneInOutDecayExp = glm::vec4(0.92f, 0.99f, 0.8f, 2.0f);
+        gubo.ambColor = glm::vec3(0.3f, 0.3f, 0.3f);
+        gubo.coneInOutDecayExp = glm::vec4(0.94f, 0.99f, 0.8f, 2.0f);
 
         gubo.view = viewMatrices[view];
 
@@ -567,13 +673,41 @@ class MyProject : public BaseProject {
         memcpy(data, &gubo, sizeof(gubo));
         vkUnmapMemory(device, DS_global.uniformBuffersMemory[0][currentImage]);
 
-
+        //
+        subo.mMat = glm::mat4(1.0f);
+        subo.nMat = glm::mat4(1.0f);
+        subo.mvpMat = gubo.proj * gubo.view;
+        subo.mvpMat = glm::scale(subo.mvpMat, glm::vec3(3.0f));
+                
+        vkMapMemory(device, DS_Space.uniformBuffersMemory[0][currentImage], 0,
+                                sizeof(subo), 0, &data);
+        memcpy(data, &subo, sizeof(subo));
+        vkUnmapMemory(device, DS_Space.uniformBuffersMemory[0][currentImage]);
+        
+        vkMapMemory(device, DS_Clouds.uniformBuffersMemory[0][currentImage], 0,
+                                sizeof(subo), 0, &data);
+        memcpy(data, &subo, sizeof(subo));
+        vkUnmapMemory(device, DS_Clouds.uniformBuffersMemory[0][currentImage]);
+        //
+        
+        
         // For the Table body
         ubo.model = glm::mat4(1.0f);
-        vkMapMemory(device, DS_Table.uniformBuffersMemory[0][currentImage], 0,
-            sizeof(ubo), 0, &data);
-        memcpy(data, &ubo, sizeof(ubo));
-        vkUnmapMemory(device, DS_Table.uniformBuffersMemory[0][currentImage]);
+        switch (skyBox) {
+            case SPACE:
+                vkMapMemory(device, DS_TableS.uniformBuffersMemory[0][currentImage], 0,
+                    sizeof(ubo), 0, &data);
+                memcpy(data, &ubo, sizeof(ubo));
+                vkUnmapMemory(device, DS_TableS.uniformBuffersMemory[0][currentImage]);
+                break;
+            case CLOUDS:
+                vkMapMemory(device, DS_TableC.uniformBuffersMemory[0][currentImage], 0,
+                    sizeof(ubo), 0, &data);
+                memcpy(data, &ubo, sizeof(ubo));
+                vkUnmapMemory(device, DS_TableC.uniformBuffersMemory[0][currentImage]);
+                break;
+        }
+        
 
         // For the Puck
         const float halfPuckHeight = 0.1f; //TODO Sync with model
@@ -601,34 +735,26 @@ class MyProject : public BaseProject {
         memcpy(data, &ubo, sizeof(ubo));
         vkUnmapMemory(device, DS_RightPaddle.uniformBuffersMemory[0][currentImage]);
 
-        //SkyBox
-        ubo.model = glm::scale(glm::mat4(1.0f), glm::vec3(5.0f)) *
-            glm::rotate(glm::mat4(1.0), glm::radians(90.0f), glm::vec3(0, 1, 0));
-        switch (skyBox) {
-            case SPACE:
-                vkMapMemory(device, DS_Space.uniformBuffersMemory[0][currentImage], 0,
-                    sizeof(ubo), 0, &data);
-                memcpy(data, &ubo, sizeof(ubo));
-                vkUnmapMemory(device, DS_Space.uniformBuffersMemory[0][currentImage]);
-                break;
-            case CLOUDS:
-                vkMapMemory(device, DS_Clouds.uniformBuffersMemory[0][currentImage], 0,
-                    sizeof(ubo), 0, &data);
-                memcpy(data, &ubo, sizeof(ubo));
-                vkUnmapMemory(device, DS_Clouds.uniformBuffersMemory[0][currentImage]);
-                break;
-        }
-
+        
 
         //Start Screen
-        ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 4.0f, 0.0f)) *
-            glm::rotate(glm::mat4(1.0), glm::radians(180.0f), glm::vec3(0, 1, 0)) *
-        glm::scale(glm::mat4(1.0), glm::vec3(0.4f, 0.5f, 0.27f));
+        ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, 0.5f)) *
+            glm::rotate(glm::mat4(1.0), glm::radians(180.0f), glm::vec3(0, 1, 1)) *
+            glm::rotate(glm::mat4(1.0), glm::radians(38.0f), glm::vec3(1, 0, 0)) *
+            glm::scale(glm::mat4(1.0), glm::vec3(0.11f, 0.11f, 0.08f));
 
-        vkMapMemory(device, DS_StartScreen.uniformBuffersMemory[0][currentImage], 0,
-            sizeof(ubo), 0, &data);
-        memcpy(data, &ubo, sizeof(ubo));
-        vkUnmapMemory(device, DS_StartScreen.uniformBuffersMemory[0][currentImage]);
+       
+                vkMapMemory(device, DS_StartScreen.uniformBuffersMemory[0][currentImage], 0,
+                    sizeof(ubo), 0, &data);
+                memcpy(data, &ubo, sizeof(ubo));
+                vkUnmapMemory(device, DS_StartScreen.uniformBuffersMemory[0][currentImage]);
+                
+                vkMapMemory(device, DS_Settings.uniformBuffersMemory[0][currentImage], 0,
+                    sizeof(ubo), 0, &data);
+                memcpy(data, &ubo, sizeof(ubo));
+                vkUnmapMemory(device, DS_Settings.uniformBuffersMemory[0][currentImage]);
+              
+     
 
         const float scoreHeight = 0.2f;
         for (int i = 0; i < GOAL_SCORE; i++) {
@@ -665,6 +791,7 @@ class MyProject : public BaseProject {
                     ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, 0.2f))*
                     glm::scale(glm::mat4(1.0),glm::vec3(0.2f));
                     ubo.model = glm::rotate(ubo.model, glm::radians(30.0f) * cos(winTextAngle/2), glm::vec3(0.0f, 1.0f, 0.0f));
+                    //TODO What happens if we multiply instead of rotating the translated matrix?
                                 
                     vkMapMemory(device, DS_BlueWin.uniformBuffersMemory[0][currentImage], 0,
                                         sizeof(ubo), 0, &data);
@@ -696,21 +823,26 @@ class MyProject : public BaseProject {
             ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.4f, 0.2f))*
             glm::scale(glm::mat4(1.0),glm::vec3(0.2f));
                                 
-            vkMapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage], 0,
-                                sizeof(ubo), 0, &data);
-            memcpy(data, &ubo, sizeof(ubo));
-            vkUnmapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage]);
+                    vkMapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage], 0,
+                                        sizeof(ubo), 0, &data);
+                    memcpy(data, &ubo, sizeof(ubo));
+                    vkUnmapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage]);
+                    
             
         }
         
     }
 
+    //TODO Handle as views
     void checkSkyBoxChanges(){
-        if (glfwGetKey(window, GLFW_KEY_X) && skyBox != SPACE)
+        if (glfwGetKey(window, GLFW_KEY_X) && skyBox != SPACE){
+            commandBufferUpdate=true;
             skyBox=SPACE;
-        
-        if (glfwGetKey(window, GLFW_KEY_C) && skyBox != CLOUDS)
+        }
+        if (glfwGetKey(window, GLFW_KEY_C) && skyBox != CLOUDS){
+            commandBufferUpdate=true;
             skyBox=CLOUDS;
+        }
     }
     
     void checkChangeDifficulty() {
@@ -1003,16 +1135,16 @@ class MyProject : public BaseProject {
             rightPlayerScore++;
             if (rightPlayerScore == GOAL_SCORE){
                 winner = 2;
-                endGame();}
-            else
+                endGame();
+            } else
                 resetGameState();
 
         } else if (puck.x >= halfTableLength) {
             leftPlayerScore++;
             if (leftPlayerScore == GOAL_SCORE){
                 winner = 1;
-                endGame();}
-            else
+                endGame();
+            } else
                 resetGameState();
         }
     }
@@ -1021,7 +1153,7 @@ class MyProject : public BaseProject {
         float debounceInterval = std::chrono::duration<float>(currentTime - debounceTime).count();
 
         if (glfwGetKey(window, GLFW_KEY_V) && debounceInterval > DEBOUNCE_THRESHOLD) {
-            view = static_cast<views>((view + 1) % NUM_VIEWS + 1);
+            view = static_cast<views>((view+1) % NUM_VIEWS);
             debounceTime = currentTime;
         }
     }
@@ -1061,9 +1193,16 @@ class MyProject : public BaseProject {
         checkSkyBoxChanges();
         switch (state) {
             case START:
+                if (glfwGetKey(window, GLFW_KEY_P))
+                state=SETTINGS;
+                commandBufferUpdate=true;
+                break;
+        
+            case SETTINGS:
                 if (glfwGetKey(window, GLFW_KEY_P)) {
-                    view = ABOVE;
                     resetGameState();
+                    view = ABOVE;
+                    commandBufferUpdate = true;
                 }
                 break;
     
@@ -1114,7 +1253,10 @@ class MyProject : public BaseProject {
                 if (view != ENDGAME)
                     oldView = view;
                 view = ENDGAME;
+                rightPlayerScore = -1;
+                leftPlayerScore = -1;
                 if (glfwGetKey(window, GLFW_KEY_R)) {
+                    
                     rightPlayerScore = 0;
                     leftPlayerScore = 0;
                     view = oldView;
