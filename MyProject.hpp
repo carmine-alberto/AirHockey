@@ -2152,8 +2152,8 @@ void Pipeline::init(BaseProject *bp, const std::string &VertShader, const std::s
     auto vertShaderCode = readFile(VertShader);
     auto fragShaderCode = readFile(FragShader);
 
-    printf("Vertex Shader Length: %d\n", vertShaderCode.size());
-    printf("Fragment Shader Length: %d\n", fragShaderCode.size());
+    printf("Vertex Shader Length: %zd\n", vertShaderCode.size());
+    printf("Fragment Shader Length: %zd\n", fragShaderCode.size());
 
     VkShaderModule vertShaderModule =
         createShaderModule(vertShaderCode);

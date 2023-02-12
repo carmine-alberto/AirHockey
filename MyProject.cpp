@@ -8,7 +8,9 @@
 #define DEBOUNCE_THRESHOLD 0.5f
 
   
-const SkyBoxModel  SkyBoxToLoad1 = {"SkyBoxCube.obj", OBJ, {"skybox/space/right.png", "skybox/space/left.png", "skybox/space/bot.png", "skybox/space/top.png", "skybox/space/front.png", "skybox/space/back.png"}};
+//const SkyBoxModel  SkyBoxToLoad2 = { "SkyBoxCube.obj", OBJ, {"skybox/space/posx.jpg", "skybox/space/negx.jpg", "skybox/space/posy.jpg", "skybox/space/negy.jpg", "skybox/space/posz.jpg", "skybox/space/negz.jpg"} };
+//const SkyBoxModel  SkyBoxToLoad1 = { "SkyBoxCube.obj", OBJ, {"skybox/sea/right.png", "skybox/sea/left.png", "skybox/sea/top.png", "skybox/sea/bot.png", "skybox/sea/front.png", "skybox/sea/back.png"} };
+const SkyBoxModel  SkyBoxToLoad1 = { "SkyBoxCube.obj", OBJ, {"skybox/sea/right.jpg", "skybox/sea/left.jpg", "skybox/sea/top.jpg", "skybox/sea/bot.jpg", "skybox/sea/front.jpg", "skybox/sea/back.jpg"} };
 const SkyBoxModel  SkyBoxToLoad2 = {"SkyBoxCube.obj", OBJ, {"skybox/cloudy/px.png", "skybox/cloudy/nx.png", "skybox/cloudy/py.png", "skybox/cloudy/ny.png", "skybox/cloudy/pz.png", "skybox/cloudy/nz.png"}};
 
 // The uniform buffer object used in this example
@@ -1149,13 +1151,19 @@ class MyProject : public BaseProject {
         }
     }
 
-    void checkChangeView() {
+    bool isDebounced() {
         float debounceInterval = std::chrono::duration<float>(currentTime - debounceTime).count();
-
-        if (glfwGetKey(window, GLFW_KEY_V) && debounceInterval > DEBOUNCE_THRESHOLD) {
-            view = static_cast<views>((view+1) % NUM_VIEWS);
+        if (debounceInterval > DEBOUNCE_THRESHOLD) {
             debounceTime = currentTime;
+            return true;
         }
+        return false;
+    }
+
+    void checkChangeView() {
+        if (glfwGetKey(window, GLFW_KEY_V) && isDebounced()) 
+            view = static_cast<views>((view+1) % NUM_VIEWS);
+          
     }
 
     void resetGameState() {
@@ -1193,13 +1201,13 @@ class MyProject : public BaseProject {
         checkSkyBoxChanges();
         switch (state) {
             case START:
-                if (glfwGetKey(window, GLFW_KEY_P))
+                if (glfwGetKey(window, GLFW_KEY_P) && isDebounced())
                 state=SETTINGS;
                 commandBufferUpdate=true;
                 break;
         
             case SETTINGS:
-                if (glfwGetKey(window, GLFW_KEY_P)) {
+                if (glfwGetKey(window, GLFW_KEY_P) && isDebounced()) {
                     resetGameState();
                     view = ABOVE;
                     commandBufferUpdate = true;
