@@ -8,8 +8,9 @@
 #define DEBOUNCE_THRESHOLD 0.5f
 
   
-const SkyBoxModel  SkyBoxToLoad1 = {"SkyBoxCube.obj", OBJ, {"skybox/space/right.png", "skybox/space/left.png", "skybox/space/bot.png", "skybox/space/top.png", "skybox/space/front.png", "skybox/space/back.png"}};
+const SkyBoxModel  SkyBoxToLoad1 = {"SkyBoxCube.obj", OBJ, {"skybox/space/bkg1_right.jpeg", "skybox/space/bkg1_left.jpeg", "skybox/space/bkg1_top.jpeg", "skybox/space/bkg1_bot.jpeg", "skybox/space/bkg1_front.jpeg", "skybox/space/bkg1_back.jpeg"}};
 const SkyBoxModel  SkyBoxToLoad2 = {"SkyBoxCube.obj", OBJ, {"skybox/cloudy/px.png", "skybox/cloudy/nx.png", "skybox/cloudy/py.png", "skybox/cloudy/ny.png", "skybox/cloudy/pz.png", "skybox/cloudy/nz.png"}};
+
 
 // The uniform buffer object used in this example
 struct globalUniformBufferObject {
@@ -1193,6 +1194,7 @@ class MyProject : public BaseProject {
         checkSkyBoxChanges();
         switch (state) {
             case START:
+            {
                 if (glfwGetKey(window, GLFW_KEY_P))
                 state=SETTINGS;
                 commandBufferUpdate=true;
@@ -1214,8 +1216,9 @@ class MyProject : public BaseProject {
                 }
                 checkChangeView();
                 break;
-        
-            case PLAYING:               
+        }
+            case PLAYING:
+            {
                 checkChangeDifficulty();
 
                 lPaddle.vx = 0.0f;
@@ -1247,8 +1250,9 @@ class MyProject : public BaseProject {
                 }
                 checkChangeView();
                 break;
-            
+            }
             case VICTORY:
+            {
                 static views oldView; //TODO Ugly stuff right here, the idea is keeping the same view as before at restart
                 if (view != ENDGAME)
                     oldView = view;
@@ -1262,6 +1266,7 @@ class MyProject : public BaseProject {
                     view = oldView;
                     resetGameState();
                 }
+            }
         }
 
         updateGPUData(currentImage);
