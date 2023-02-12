@@ -7,11 +7,10 @@
 #define GOAL_SCORE 7
 #define DEBOUNCE_THRESHOLD 0.5f
 
-  
-//const SkyBoxModel  SkyBoxToLoad2 = { "SkyBoxCube.obj", OBJ, {"skybox/space/posx.jpg", "skybox/space/negx.jpg", "skybox/space/posy.jpg", "skybox/space/negy.jpg", "skybox/space/posz.jpg", "skybox/space/negz.jpg"} };
-//const SkyBoxModel  SkyBoxToLoad1 = { "SkyBoxCube.obj", OBJ, {"skybox/sea/right.png", "skybox/sea/left.png", "skybox/sea/top.png", "skybox/sea/bot.png", "skybox/sea/front.png", "skybox/sea/back.png"} };
-const SkyBoxModel  SkyBoxToLoad1 = { "SkyBoxCube.obj", OBJ, {"skybox/sea/right.jpg", "skybox/sea/left.jpg", "skybox/sea/top.jpg", "skybox/sea/bot.jpg", "skybox/sea/front.jpg", "skybox/sea/back.jpg"} };
+//const SkyBoxModel  SkyBoxToLoad1 = { "SkyBoxCube.obj", OBJ, {"skybox/sea/posx.jpg", "skybox/sea/negx.jpg", "skybox/sea/posy.jpg", "skybox/sea/negy.jpg", "skybox/sea/posz.jpg", "skybox/sea/negz.jpg"} };  
+const SkyBoxModel  SkyBoxToLoad1 = {"SkyBoxCube.obj", OBJ, {"skybox/space/bkg1_right.jpeg", "skybox/space/bkg1_left.jpeg", "skybox/space/bkg1_top.jpeg", "skybox/space/bkg1_bot.jpeg", "skybox/space/bkg1_front.jpeg", "skybox/space/bkg1_back.jpeg"}};
 const SkyBoxModel  SkyBoxToLoad2 = {"SkyBoxCube.obj", OBJ, {"skybox/cloudy/px.png", "skybox/cloudy/nx.png", "skybox/cloudy/py.png", "skybox/cloudy/ny.png", "skybox/cloudy/pz.png", "skybox/cloudy/nz.png"}};
+
 
 // The uniform buffer object used in this example
 struct globalUniformBufferObject {
@@ -1201,9 +1200,11 @@ class MyProject : public BaseProject {
         checkSkyBoxChanges();
         switch (state) {
             case START:
-                if (glfwGetKey(window, GLFW_KEY_P) && isDebounced())
-                state=SETTINGS;
-                commandBufferUpdate=true;
+            
+                if (glfwGetKey(window, GLFW_KEY_P) && isDebounced()) {
+                    state = SETTINGS;
+                    commandBufferUpdate = true;
+                }
                 break;
         
             case SETTINGS:
@@ -1223,7 +1224,8 @@ class MyProject : public BaseProject {
                 checkChangeView();
                 break;
         
-            case PLAYING:               
+            case PLAYING:
+            {
                 checkChangeDifficulty();
 
                 lPaddle.vx = 0.0f;
@@ -1255,8 +1257,9 @@ class MyProject : public BaseProject {
                 }
                 checkChangeView();
                 break;
-            
+            }
             case VICTORY:
+            
                 static views oldView; //TODO Ugly stuff right here, the idea is keeping the same view as before at restart
                 if (view != ENDGAME)
                     oldView = view;
@@ -1270,6 +1273,7 @@ class MyProject : public BaseProject {
                     view = oldView;
                     resetGameState();
                 }
+            
         }
 
         updateGPUData(currentImage);
