@@ -114,8 +114,8 @@ class MyProject : public BaseProject {
     DescriptorSet DS_global;
 
     //Other variables
-    int leftPlayerScore = 0;
-    int rightPlayerScore = 0;
+    int leftPlayerScore = 6;
+    int rightPlayerScore = 6;
 
     //Assumption: the table is centered in (0, 0)
     float halfTableLength = 1.7428f / 2;
@@ -643,9 +643,9 @@ class MyProject : public BaseProject {
             glm::lookAt(glm::vec3(halfTableLength + 0.8f, cameraHeight, 0.0f), //Right player
                         glm::vec3(0.0f, halfTableHeight, 0.0f),
                         glm::vec3(0.0f, 1.0f, 0.0f)),
-            glm::lookAt(glm::vec3(0.0f, 0.8f, 2.4f), //Victory; TODO Use views above and rotate winText
-                        glm::vec3(0.0f, halfTableHeight, 0.0f),
-                        glm::vec3(0.0f, 1.0f, 0.0f)),
+            //glm::lookAt(glm::vec3(0.0f, 0.8f, 2.4f), //Victory; TODO Use views above and rotate winText
+            //            glm::vec3(0.0f, halfTableHeight, 0.0f),
+             //           glm::vec3(0.0f, 1.0f, 0.0f)),
         };
         
         
@@ -659,8 +659,9 @@ class MyProject : public BaseProject {
         gubo.spotDirection = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
 
         gubo.lightColor = glm::vec3(0.6f, 0.6f, 0.6f);
-        gubo.ambColor = glm::vec3(0.3f, 0.3f, 0.3f);
-        gubo.coneInOutDecayExp = glm::vec4(0.94f, 0.99f, 0.8f, 2.0f);
+        if(state == START || state == SETTINGS) gubo.ambColor = glm::vec3(0.7f, 0.7f, 0.7f);
+        else gubo.ambColor = glm::vec3(0.2f, 0.2f, 0.2f);
+        gubo.coneInOutDecayExp = glm::vec4(0.98f, 0.99f, 0.7f, 2.06);
 
         gubo.view = viewMatrices[view];
 
@@ -789,8 +790,8 @@ class MyProject : public BaseProject {
             winTextAngle += dt;
             switch (winner) {
                 case 1:
-                    ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, 0.2f))*
-                    glm::scale(glm::mat4(1.0),glm::vec3(0.2f));
+                    ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, 0.0f))*
+                    glm::scale(glm::mat4(1.0),glm::vec3(0.15f)) * glm::rotate(glm::mat4(1.0), glm::radians(270.0f), glm::vec3(0,1, 0));
                     ubo.model = glm::rotate(ubo.model, glm::radians(30.0f) * cos(winTextAngle/2), glm::vec3(0.0f, 1.0f, 0.0f));
                     //TODO What happens if we multiply instead of rotating the translated matrix?
                                 
@@ -801,8 +802,8 @@ class MyProject : public BaseProject {
                     break;
                     
                 case 2:
-                    ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, 0.2f))*
-                    glm::scale(glm::mat4(1.0),glm::vec3(0.2f));
+                    ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, 0.0f))*
+                    glm::scale(glm::mat4(1.0),glm::vec3(0.15f))* glm::rotate(glm::mat4(1.0), glm::radians(90.0f), glm::vec3(0, 1, 0));
                     ubo.model = glm::rotate(ubo.model, glm::radians(30.0f) * cos(winTextAngle/2), glm::vec3(0.0f, 1.0f, 0.0f));
                                 
                     vkMapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage], 0,
@@ -836,13 +837,16 @@ class MyProject : public BaseProject {
 
     //TODO Handle as views
     void checkSkyBoxChanges(){
-        if (glfwGetKey(window, GLFW_KEY_X) && skyBox != SPACE){
+        if (glfwGetKey(window, GLFW_KEY_C) && isDebounced()){
+            switch(skyBox){
+                case SPACE:
+                    skyBox=CLOUDS;
+                    break;
+                case CLOUDS:
+                    skyBox=SPACE;
+                    break;
+            }
             commandBufferUpdate=true;
-            skyBox=SPACE;
-        }
-        if (glfwGetKey(window, GLFW_KEY_C) && skyBox != CLOUDS){
-            commandBufferUpdate=true;
-            skyBox=CLOUDS;
         }
     }
     
@@ -1263,7 +1267,9 @@ class MyProject : public BaseProject {
                 static views oldView; //TODO Ugly stuff right here, the idea is keeping the same view as before at restart
                 if (view != ENDGAME)
                     oldView = view;
-                view = ENDGAME;
+                
+                if(rightPlayerScore==GOAL_SCORE) view= RIGHTPLAYER;
+                else if(leftPlayerScore==GOAL_SCORE) view= LEFTPLAYER;
                 rightPlayerScore = -1;
                 leftPlayerScore = -1;
                 if (glfwGetKey(window, GLFW_KEY_R)) {
