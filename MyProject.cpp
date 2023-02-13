@@ -163,12 +163,14 @@ class MyProject : public BaseProject {
         VICTORY
     } state = START;
 
+    //TODO Remove unused
     enum views {
         ABOVE,
         LEFTPLAYER,
         RIGHTPLAYER,
         ENDGAME
     } view = ABOVE;
+    views oldView;
     
     enum skyBoxes {
         SPACE,
@@ -642,10 +644,7 @@ class MyProject : public BaseProject {
                         glm::vec3(0.0f, 1.0f, 0.0f)),
             glm::lookAt(glm::vec3(halfTableLength + 0.8f, cameraHeight, 0.0f), //Right player
                         glm::vec3(0.0f, halfTableHeight, 0.0f),
-                        glm::vec3(0.0f, 1.0f, 0.0f)),
-            //glm::lookAt(glm::vec3(0.0f, 0.8f, 2.4f), //Victory; TODO Use views above and rotate winText
-            //            glm::vec3(0.0f, halfTableHeight, 0.0f),
-             //           glm::vec3(0.0f, 1.0f, 0.0f)),
+                        glm::vec3(0.0f, 1.0f, 0.0f))
         };
         
         
@@ -675,7 +674,6 @@ class MyProject : public BaseProject {
         memcpy(data, &gubo, sizeof(gubo));
         vkUnmapMemory(device, DS_global.uniformBuffersMemory[0][currentImage]);
 
-        //
         subo.mMat = glm::mat4(1.0f);
         subo.nMat = glm::mat4(1.0f);
         subo.mvpMat = gubo.proj * gubo.view;
@@ -786,7 +784,7 @@ class MyProject : public BaseProject {
         }
         
         //Win
-        if(state == VICTORY) {
+        if (state == VICTORY) {
             winTextAngle += dt;
             switch (winner) {
                 case 1:
@@ -828,9 +826,7 @@ class MyProject : public BaseProject {
                     vkMapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage], 0,
                                         sizeof(ubo), 0, &data);
                     memcpy(data, &ubo, sizeof(ubo));
-                    vkUnmapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage]);
-                    
-            
+                    vkUnmapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage]);            
         }
         
     }
@@ -1046,6 +1042,11 @@ class MyProject : public BaseProject {
         float relativeX = abs(puck.x) - abs(cornerCircleCenter.x); //Check to perform: relX < (cornerRadius - paddleRadius)cos alpha
         float relativeY = abs(puck.y) - cornerCircleRadius;
 
+        const float halfGoalWidth = halfTableWidth - cornerCircleRadius;
+        float edgePuckDistanceX = halfTableLength - abs(puck.x);
+        float edgePuckDistanceY = halfGoalWidth - abs(puck.y);
+
+
         if (relativeX > 0 &&
             relativeY > 0 &&
             (pow(relativeX, 2) + pow(relativeY, 2) >= pow(relativeRadius, 2))) {
@@ -1069,12 +1070,15 @@ class MyProject : public BaseProject {
                 normalVector = glm::vec2(0.0f, 1.0f); //LOWER SIDE
                 completelyBounced = false;
             }
-            /* TODO Handle these cases - hit on edges
-            else if (puck.x <= -halfTableLength + puckRadius)
-                normalVector = glm::vec2(1.0f, 0.0f); //LEFT SIDE
-            else if (puck.x >= halfTableLength - puckRadius)
-                normalVector = glm::vec2(-1.0f, 0.0f); //RIGHT SIDE
-                */
+            
+        else if (pow(edgePuckDistanceX, 2) + pow(edgePuckDistanceY, 2) <= pow(puckRadius, 2))
+                if (completelyBounced) { 
+                    normalVector = glm::normalize(glm::vec2( //PUCK-EDGES
+                        edgePuckDistanceX, 
+                        edgePuckDistanceY
+                    ));
+                    completelyBounced = false;
+                }   
         }
         else if (pow(puckLeftPaddleDistanceX, 2) + pow(puckLeftPaddleDistanceY, 2) <= pow(puckPaddleMinDistance, 2)) {
             if (completelyBounced) {
@@ -1186,6 +1190,7 @@ class MyProject : public BaseProject {
 
     void endGame() {
         state = VICTORY;
+        oldView = view;
         //resetGameState();
         //TODO Show stuff. If not done here, remove method altogether, move state change to checkScoreOccurred
     }
@@ -1263,15 +1268,12 @@ class MyProject : public BaseProject {
                 break;
             }
             case VICTORY:
-            
-                static views oldView; //TODO Ugly stuff right here, the idea is keeping the same view as before at restart
-                if (view != ENDGAME)
-                    oldView = view;
                 
-                if(rightPlayerScore==GOAL_SCORE) view= RIGHTPLAYER;
-                else if(leftPlayerScore==GOAL_SCORE) view= LEFTPLAYER;
+                if (rightPlayerScore == GOAL_SCORE) view = RIGHTPLAYER;
+                else if (leftPlayerScore == GOAL_SCORE) view = LEFTPLAYER;
                 rightPlayerScore = -1;
                 leftPlayerScore = -1;
+
                 if (glfwGetKey(window, GLFW_KEY_R)) {
                     
                     rightPlayerScore = 0;
