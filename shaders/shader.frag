@@ -67,14 +67,14 @@ void main() {
     vec3 SpecCol = vec3(1.0f, 1.0f, 1.0f);
     
     
-    vec3 pos1= gubo.spotPosition1 + vec3(-0.7f, 1.0f, 0.0f);
-    vec3 pos2= gubo.spotPosition1 + vec3(-0.2f, 1.0f, 0.0f);
-    vec3 pos3= gubo.spotPosition1 + vec3(0.2f, 1.0f, 0.0f);
-    vec3 pos4= gubo.spotPosition1 + vec3(0.7f, 1.0f, 0.0f);
-    vec3 pos5= gubo.spotPosition2 + vec3(-0.7f, 1.0f, 0.2f);
-    vec3 pos6= gubo.spotPosition2 + vec3(-0.2f, 1.0f, 0.0f);
-    vec3 pos7= gubo.spotPosition2 + vec3(0.2f, 1.0f, 0.0f);
-    vec3 pos8= gubo.spotPosition2 + vec3(0.7f, 1.0f, 0.0f);
+    vec3 pos1= gubo.spotPosition1 + vec3(-0.8f, 1.0f, 0.0f);
+    vec3 pos2= gubo.spotPosition1 + vec3(-0.25f, 1.0f, 0.0f);
+    vec3 pos3= gubo.spotPosition1 + vec3(0.25f, 1.0f, 0.0f);
+    vec3 pos4= gubo.spotPosition1 + vec3(0.8f, 1.0f, 0.0f);
+    vec3 pos5= gubo.spotPosition2 + vec3(-0.8f, 1.0f, 0.0f);
+    vec3 pos6= gubo.spotPosition2 + vec3(-0.25f, 1.0f, 0.0f);
+    vec3 pos7= gubo.spotPosition2 + vec3(0.25f, 1.0f, 0.0f);
+    vec3 pos8= gubo.spotPosition2 + vec3(0.8f, 1.0f, 0.0f);
     
     //Lambert diffuse
     //vec3 lightDiff = computeLambertDiff(Norm, fragPos, gubo.lightPos ,DifCol);
