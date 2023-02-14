@@ -94,8 +94,10 @@ class MyProject : public BaseProject {
     Model M_StartScreen;
     Texture T_StartScreen;
     Texture T_Settings;
+    Texture T_Pause;
     DescriptorSet DS_StartScreen;
     DescriptorSet DS_Settings;
+    DescriptorSet DS_Pause;
 
     //Points
     Model M_Numbers[GOAL_SCORE];
@@ -107,15 +109,18 @@ class MyProject : public BaseProject {
     //Win Screen
     Model M_BlueWin;
     Model M_RedWin;
+    Model M_Reset;
+    Texture T_Reset;
     Texture T_Win;
     DescriptorSet DS_BlueWin;
     DescriptorSet DS_RedWin;
+    DescriptorSet DS_Reset;
     
     DescriptorSet DS_global;
 
     //Other variables
-    int leftPlayerScore = 6;
-    int rightPlayerScore = 6;
+    int leftPlayerScore = 5;
+    int rightPlayerScore = 5;
 
     //Assumption: the table is centered in (0, 0)
     float halfTableLength = 1.7428f / 2;
@@ -160,7 +165,9 @@ class MyProject : public BaseProject {
         SETTINGS,
         RESET,
         PLAYING,
-        VICTORY
+        VICTORY,
+        PAUSE,
+        RESUME
     } state = START;
 
     //TODO Remove unused
@@ -185,15 +192,15 @@ class MyProject : public BaseProject {
     // Here you set the main application parameters
     void setWindowParameters() {
         // window size, titile and initial background
-        windowWidth = 1300;
-        windowHeight = 950;
+        windowWidth = 1250;
+        windowHeight = 900;
         windowTitle = "Air Hockey";
         initialBackgroundColor = {0.0f, 0.5f, 0.0f, 1.0f};
         
         // Descriptor pool sizes
         //TODO Check the number is tight
         uniformBlocksInPool = 30;
-        texturesInPool = 25;
+        texturesInPool = 28;
         setsInPool = 30;
     }
     
@@ -294,6 +301,7 @@ class MyProject : public BaseProject {
         M_StartScreen.init(this, "models/ground.obj");
         T_StartScreen.init(this, "textures/StartScreen.png");
         T_Settings.init(this, "textures/Settings.png");
+        T_Pause.init(this, "textures/Pause.png");
         DS_StartScreen.init(this, &DSLobj, {
             {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
             {1, TEXTURE, 0, &T_StartScreen}
@@ -301,6 +309,10 @@ class MyProject : public BaseProject {
         DS_Settings.init(this, &DSLobj, {
             {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
             {1, TEXTURE, 0, &T_Settings}
+        });
+        DS_Pause.init(this, &DSLobj, {
+            {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
+            {1, TEXTURE, 0, &T_Pause}
         });
 
         //Numbers
@@ -333,6 +345,14 @@ class MyProject : public BaseProject {
             {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
             {1, TEXTURE, 0, &T_Win}
         });
+        
+        M_Reset.init(this, "models/Restart.obj");
+        T_Reset.init(this, "textures/white.jpeg");
+        DS_Reset.init(this, &DSLobj, {
+            {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
+            {1, TEXTURE, 0, &T_Reset}
+        });
+        
 
         DS_global.init(this, &DSLglobal, {
                     {0, UNIFORM, sizeof(globalUniformBufferObject), nullptr}
@@ -390,16 +410,21 @@ class MyProject : public BaseProject {
         //Start Screen
         DS_StartScreen.cleanup();
         DS_Settings.cleanup();
+        DS_Pause.cleanup();
         T_StartScreen.cleanup();
         T_Settings.cleanup();
+        T_Pause.cleanup();
         M_StartScreen.cleanup();
         
         //Win Text
         DS_BlueWin.cleanup();
         DS_RedWin.cleanup();
+        DS_Reset.cleanup();
         T_Win.cleanup();
+        T_Reset.cleanup();
         M_BlueWin.cleanup();
         M_RedWin.cleanup();
+        M_Reset.cleanup();
         
         DS_global.cleanup();
 
@@ -485,6 +510,7 @@ class MyProject : public BaseProject {
                             static_cast<uint32_t>(M_Table.indices.size()), 1, 0, 0, 0);
 
                 break;
+            
         }
                 
         VkBuffer vertexBuffers_SC[] = {M_StartScreen.vertexBuffer};
@@ -508,6 +534,16 @@ class MyProject : public BaseProject {
                                 0, nullptr);
                 vkCmdDrawIndexed(commandBuffer,
                             static_cast<uint32_t>(M_StartScreen.indices.size()), 1, 0, 0, 0);
+                break;
+            case PAUSE:
+                vkCmdBindDescriptorSets(commandBuffer,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                P1.pipelineLayout, 1, 1, &DS_Pause.descriptorSets[currentImage],
+                                0, nullptr);
+                                
+                vkCmdDrawIndexed(commandBuffer,
+                            static_cast<uint32_t>(M_StartScreen.indices.size()), 1, 0, 0, 0);
+
                 break;
         }
         
@@ -621,6 +657,19 @@ class MyProject : public BaseProject {
             0, nullptr);
         vkCmdDrawIndexed(commandBuffer,
             static_cast<uint32_t>(M_RedWin.indices.size()), 1, 0, 0, 0);
+        
+        //Reset game
+        VkBuffer vertexBuffers_Reset[] = { M_Reset.vertexBuffer };
+        VkDeviceSize offsets_Reset[] = { 0 };
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers_Reset, offsets_Reset);
+        vkCmdBindIndexBuffer(commandBuffer, M_Reset.indexBuffer, 0,
+            VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+         P1.pipelineLayout, 1, 1, &DS_Reset.descriptorSets[currentImage],
+            0, nullptr);
+        vkCmdDrawIndexed(commandBuffer,
+            static_cast<uint32_t>(M_Reset.indices.size()), 1, 0, 0, 0);
       
     }
 
@@ -657,11 +706,15 @@ class MyProject : public BaseProject {
         //gubo.spotDirection = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
         gubo.spotDirection = glm::vec3(cos(glm::radians(90.0f)), sin(glm::radians(90.0f)), 0.0f);
 
-        gubo.lightColor = glm::vec3(0.6f, 0.6f, 0.6f);
-        if(state == START || state == SETTINGS) gubo.ambColor = glm::vec3(0.7f, 0.7f, 0.7f);
-        else gubo.ambColor = glm::vec3(0.2f, 0.2f, 0.2f);
-        gubo.coneInOutDecayExp = glm::vec4(0.98f, 0.99f, 0.7f, 2.06);
-
+        gubo.lightColor = glm::vec3(0.8f, 0.8f, 0.8f);
+        if(state == START || state == SETTINGS || state==PAUSE) {
+            gubo.ambColor = glm::vec3(1.0f, 1.0f, 1.0f);
+            gubo.coneInOutDecayExp = glm::vec4(cos(glm::radians(15.0f)), cos(glm::radians(10.0f)), 2.9f, 0);
+        }
+        else{
+            gubo.ambColor = glm::vec3(0.3f, 0.3f, 0.3f);
+            gubo.coneInOutDecayExp = glm::vec4(cos(glm::radians(15.0f)), cos(glm::radians(0.0f)), 0.9f, 1);
+        }
         gubo.view = viewMatrices[view];
 
         gubo.proj = glm::perspective(glm::radians(45.0f),
@@ -738,21 +791,47 @@ class MyProject : public BaseProject {
         
 
         //Start Screen
-        ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, 0.5f)) *
+        if(state== START || state== SETTINGS || state== PAUSE){
+        ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.48f, 0.56f)) *
             glm::rotate(glm::mat4(1.0), glm::radians(180.0f), glm::vec3(0, 1, 1)) *
-            glm::rotate(glm::mat4(1.0), glm::radians(38.0f), glm::vec3(1, 0, 0)) *
+            glm::rotate(glm::mat4(1.0), glm::radians(36.0f), glm::vec3(1, 0, 0)) *
             glm::scale(glm::mat4(1.0), glm::vec3(0.11f, 0.11f, 0.08f));
-
-       
+        } else{
+            ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.48f, 0.56f)) *
+                glm::rotate(glm::mat4(1.0), glm::radians(180.0f), glm::vec3(0, 1, 1)) *
+                glm::rotate(glm::mat4(1.0), glm::radians(36.0f), glm::vec3(1, 0, 0)) *
+                glm::scale(glm::mat4(1.0), glm::vec3(0.11f, 0.11f, 0.08f));
+        }
+        
+        switch (state) {
+            case START:
                 vkMapMemory(device, DS_StartScreen.uniformBuffersMemory[0][currentImage], 0,
-                    sizeof(ubo), 0, &data);
+                            sizeof(ubo), 0, &data);
                 memcpy(data, &ubo, sizeof(ubo));
                 vkUnmapMemory(device, DS_StartScreen.uniformBuffersMemory[0][currentImage]);
-                
+                break;
+            case SETTINGS:
+                //Settings
                 vkMapMemory(device, DS_Settings.uniformBuffersMemory[0][currentImage], 0,
-                    sizeof(ubo), 0, &data);
+                            sizeof(ubo), 0, &data);
                 memcpy(data, &ubo, sizeof(ubo));
                 vkUnmapMemory(device, DS_Settings.uniformBuffersMemory[0][currentImage]);
+                break;
+            case PAUSE:
+                //Pause
+                vkMapMemory(device, DS_Pause.uniformBuffersMemory[0][currentImage], 0,
+                    sizeof(ubo), 0, &data);
+                memcpy(data, &ubo, sizeof(ubo));
+                vkUnmapMemory(device, DS_Pause.uniformBuffersMemory[0][currentImage]);
+                break;
+            case RESUME:
+                
+                vkMapMemory(device, DS_Pause.uniformBuffersMemory[0][currentImage], 0,
+                    sizeof(ubo), 0, &data);
+                memcpy(data, &ubo, sizeof(ubo));
+                vkUnmapMemory(device, DS_Pause.uniformBuffersMemory[0][currentImage]);
+                break;
+        }
               
      
 
@@ -789,7 +868,7 @@ class MyProject : public BaseProject {
             switch (winner) {
                 case 1:
                     ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, 0.0f))*
-                    glm::scale(glm::mat4(1.0),glm::vec3(0.15f)) * glm::rotate(glm::mat4(1.0), glm::radians(270.0f), glm::vec3(0,1, 0));
+                    glm::scale(glm::mat4(1.0),glm::vec3(0.15f)) * glm::rotate(glm::mat4(1.0), glm::radians(270.0f), glm::vec3(0,1,0));
                     ubo.model = glm::rotate(ubo.model, glm::radians(30.0f) * cos(winTextAngle/2), glm::vec3(0.0f, 1.0f, 0.0f));
                     //TODO What happens if we multiply instead of rotating the translated matrix?
                                 
@@ -797,19 +876,45 @@ class MyProject : public BaseProject {
                                         sizeof(ubo), 0, &data);
                     memcpy(data, &ubo, sizeof(ubo));
                     vkUnmapMemory(device, DS_BlueWin.uniformBuffersMemory[0][currentImage]);
+                    
+                    //Reset
+                    
+                    ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(-0.7f, 0.2f, 0.0f))*
+                    glm::scale(glm::mat4(1.0),glm::vec3(0.08f)) * glm::rotate(glm::mat4(1.0), glm::radians(270.0f), glm::vec3(0,1,0))
+                    *glm::rotate(glm::mat4(1.0), glm::radians(-30.0f), glm::vec3(1,0,0));
+                    
+                    vkMapMemory(device, DS_Reset.uniformBuffersMemory[0][currentImage], 0,
+                                        sizeof(ubo), 0, &data);
+                    memcpy(data, &ubo, sizeof(ubo));
+                    vkUnmapMemory(device, DS_Reset.uniformBuffersMemory[0][currentImage]);
+                    
                     break;
                     
                 case 2:
                     ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, 0.0f))*
                     glm::scale(glm::mat4(1.0),glm::vec3(0.15f))* glm::rotate(glm::mat4(1.0), glm::radians(90.0f), glm::vec3(0, 1, 0));
                     ubo.model = glm::rotate(ubo.model, glm::radians(30.0f) * cos(winTextAngle/2), glm::vec3(0.0f, 1.0f, 0.0f));
-                                
+                        
                     vkMapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage], 0,
                                         sizeof(ubo), 0, &data);
                     memcpy(data, &ubo, sizeof(ubo));
                     vkUnmapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage]);
+                    
+                    //Reset
+                    ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.7f, 0.2f, 0.0f))*
+                    glm::scale(glm::mat4(1.0),glm::vec3(0.08f)) * glm::rotate(glm::mat4(1.0), glm::radians(90.0f), glm::vec3(0,1,0))
+                    * glm::rotate(glm::mat4(1.0), glm::radians(-30.0f), glm::vec3(1,0,0));
+                     
+                    
+                    vkMapMemory(device, DS_Reset.uniformBuffersMemory[0][currentImage], 0,
+                                        sizeof(ubo), 0, &data);
+                    memcpy(data, &ubo, sizeof(ubo));
+                    vkUnmapMemory(device, DS_Reset.uniformBuffersMemory[0][currentImage]);
                     break;
             }
+            
+            
+            
         }
         else {
             ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.4f, 0.2f))*
@@ -819,14 +924,26 @@ class MyProject : public BaseProject {
                                 sizeof(ubo), 0, &data);
             memcpy(data, &ubo, sizeof(ubo));
             vkUnmapMemory(device, DS_BlueWin.uniformBuffersMemory[0][currentImage]);
+            //Reset
+            vkMapMemory(device, DS_Reset.uniformBuffersMemory[0][currentImage], 0,
+                                sizeof(ubo), 0, &data);
+            memcpy(data, &ubo, sizeof(ubo));
+            vkUnmapMemory(device, DS_Reset.uniformBuffersMemory[0][currentImage]);
                     
             ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.4f, 0.2f))*
             glm::scale(glm::mat4(1.0),glm::vec3(0.2f));
                                 
-                    vkMapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage], 0,
+            vkMapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage], 0,
                                         sizeof(ubo), 0, &data);
-                    memcpy(data, &ubo, sizeof(ubo));
-                    vkUnmapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage]);            
+
+            memcpy(data, &ubo, sizeof(ubo));
+            vkUnmapMemory(device, DS_RedWin.uniformBuffersMemory[0][currentImage]);
+            
+            //Reset
+            vkMapMemory(device, DS_Reset.uniformBuffersMemory[0][currentImage], 0,
+                                sizeof(ubo), 0, &data);
+            memcpy(data, &ubo, sizeof(ubo));
+            vkUnmapMemory(device, DS_Reset.uniformBuffersMemory[0][currentImage]);
         }
         
     }
@@ -1264,24 +1381,60 @@ class MyProject : public BaseProject {
                     puck.y = halfTableWidth - puckRadius - 0.2f;
                     launchPuck();
                 }
+                
                 checkChangeView();
+                
+                if (glfwGetKey(window, GLFW_KEY_P) && isDebounced()) {
+                    puck.vx=0;
+                    puck.vy=0;
+                    state=PAUSE;
+                    commandBufferUpdate=true;
+                }
+                
                 break;
             }
             case VICTORY:
                 
-                if (rightPlayerScore == GOAL_SCORE) view = RIGHTPLAYER;
-                else if (leftPlayerScore == GOAL_SCORE) view = LEFTPLAYER;
+
+                if(rightPlayerScore==GOAL_SCORE) view = RIGHTPLAYER;
+                else if(leftPlayerScore==GOAL_SCORE) view = LEFTPLAYER;
+                
                 rightPlayerScore = -1;
                 leftPlayerScore = -1;
+                
+                if (glfwGetKey(window, GLFW_KEY_R) && isDebounced()) {
 
-                if (glfwGetKey(window, GLFW_KEY_R)) {
                     
                     rightPlayerScore = 0;
                     leftPlayerScore = 0;
                     view = oldView;
                     resetGameState();
                 }
-            
+                break;
+                
+            case PAUSE:
+                if (glfwGetKey(window, GLFW_KEY_P) && isDebounced()) {
+                    state=RESUME;
+                }
+                
+                if (glfwGetKey(window, GLFW_KEY_L) && isDebounced() ) {
+                    rightPlayerScore = 0;
+                    leftPlayerScore = 0;
+                    view = ABOVE;
+                    resetGameState();
+                    commandBufferUpdate=true;
+                    
+                }
+                break;
+                
+            case RESUME:
+                float debounceInterval = std::chrono::duration<float>(currentTime - debounceTime).count();
+                if(debounceInterval>1.0f){
+                    state=PLAYING;
+                    launchPuck();
+        }
+    
+                break;
         }
 
         updateGPUData(currentImage);
