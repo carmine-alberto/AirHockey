@@ -11,6 +11,7 @@ layout(set = 0, binding = 0) uniform globalUniformBufferObject {
     vec3 spotPosition2;
     vec3 spotDirection;
     vec3 eyePos;
+    vec2 selector;
 } gubo;
 
 layout(set = 1, binding = 0) uniform UniformBufferObject {
@@ -56,13 +57,38 @@ vec3 computeSpotColor(float beta, float g, vec3 pos, vec3 lightPos, vec3 lightCo
     return col;
 }
 
+vec3 Toon_Diffuse_BRDF(vec3 L, vec3 N, vec3 V, vec3 C, vec3 Cd, float thr) {
+    float LN = dot(L, N);
+    vec3 f_specular = C;// Light areas
+    if (LN < 0){
+        return vec3(0,0,0); // Opposite area
+    }
+    if (LN < thr){
+        return Cd; // Dark areas
+    }
+    return f_specular;
+}
+
+vec3 Toon_Specular_BRDF(vec3 L, vec3 N, vec3 V, vec3 C, float thr)  {
+    vec3 r = 2* N * dot(L, N) - L;
+    vec3 f_specular = C;
+    if (dot(V, r) < thr){
+        f_specular = vec3(0.0f);
+    }
+    return f_specular;
+}
+
+
+
 
 
 void main() {
     vec3 Norm = normalize(fragNorm);
     vec3 EyeDir = normalize(gubo.eyePos.xyz - fragPos);
     float gamma = 50.0f;
-    vec3 DifCol = texture(texSampler, fragTexCoord).rgb;
+    vec3 TextureCol = texture(texSampler, fragTexCoord).rgb;
+    vec3 GreyCol = vec3(min(min(TextureCol.r, TextureCol.g),TextureCol.b));
+    vec3 DifCol= gubo.selector.x * TextureCol + (1-gubo.selector.x) * GreyCol;
     vec3 SpecCol = vec3(1.0f, 1.0f, 1.0f);
     
     
@@ -77,7 +103,7 @@ void main() {
     
     //Lambert diffuse
     //vec3 lightDiff = computeLambertDiff(Norm, fragPos, gubo.lightPos ,DifCol);
-    vec3 Diff1 = computeLambertDiff(Norm, fragPos, pos1 ,DifCol);
+    vec3 Diff1 = gubo.selector.y *computeLambertDiff(Norm, fragPos, pos1 ,DifCol)  ;
     vec3 Diff2 = computeLambertDiff(Norm, fragPos, pos2 ,DifCol);
     vec3 Diff3 = computeLambertDiff(Norm, fragPos, pos3 ,DifCol);
     vec3 Diff4 = computeLambertDiff(Norm, fragPos, pos4 ,DifCol);

@@ -24,6 +24,7 @@ struct globalUniformBufferObject {
         alignas(16) glm::vec3 spotPosition2;
         alignas(16) glm::vec3 spotDirection;
         alignas(16) glm::vec3 eyePos;
+        alignas(8)  glm::vec2 selector;
 };
 
 struct UniformBufferObject {
@@ -144,6 +145,8 @@ class MyProject : public BaseProject {
     
     int winner; //1 Blue - 2 red
     float winTextAngle = 0;
+    
+    glm::vec2 sel = glm::vec2(1.0f, 1.0f);
     
     Point lPaddle = { -halfTableLength + paddleRadius, 0.0f, 0.0f, 0.0f };
     Point rPaddle = { halfTableLength - paddleRadius, 0.0f, 0.0f, 0.0f };
@@ -698,6 +701,8 @@ class MyProject : public BaseProject {
 
         //** spot light **/
         //gubo.lightPos = glm::vec3(0.0f, 4.0f, -4.0f);
+        gubo.selector=sel;
+        
         gubo.spotPosition1 = glm::vec3(0.0f, 1.0f, 0.3f);
         gubo.spotPosition2 = glm::vec3(0.0f, 1.0f, -0.3f);
 
@@ -714,6 +719,7 @@ class MyProject : public BaseProject {
             gubo.coneInOutDecayExp = glm::vec4(cos(glm::radians(15.0f)), cos(glm::radians(0.0f)), 0.9f, 1);
         }
         gubo.view = viewMatrices[view];
+        gubo.eyePos= viewMatrices[view][3];
 
         gubo.proj = glm::perspective(glm::radians(45.0f),
             swapChainExtent.width / (float)swapChainExtent.height,
@@ -726,8 +732,7 @@ class MyProject : public BaseProject {
         vkUnmapMemory(device, DS_global.uniformBuffersMemory[0][currentImage]);
 
         
-        subo.mvpMat = gubo.proj * gubo.view;
-        subo.mvpMat = glm::scale(subo.mvpMat, glm::vec3(3.0f));
+        subo.mvpMat = gubo.proj * gubo.view * glm::scale(glm::mat4(1.0f), glm::vec3(3.0f));
                 
         vkMapMemory(device, DS_Space.uniformBuffersMemory[0][currentImage], 0,
                                 sizeof(subo), 0, &data);
@@ -1378,6 +1383,7 @@ class MyProject : public BaseProject {
                 checkChangeView();
                 
                 if (glfwGetKey(window, GLFW_KEY_P) && isDebounced()) {
+                    sel.x= 0.0f;
                     puck.vx=0;
                     puck.vy=0;
                     state=PAUSE;
@@ -1406,9 +1412,11 @@ class MyProject : public BaseProject {
                 break;
                 
             case PAUSE:
+                
                 if (glfwGetKey(window, GLFW_KEY_P) && isDebounced()) {
                     state=RESUME;
                     view=oldView;
+                    sel.x= 1.0f;
                     
                 }
                 
@@ -1427,7 +1435,7 @@ class MyProject : public BaseProject {
                 if(debounceInterval>1.0f){
                     state=PLAYING;
                     launchPuck();
-        }
+                    }
     
                 break;
         }
