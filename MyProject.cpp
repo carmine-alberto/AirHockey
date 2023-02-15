@@ -32,8 +32,6 @@ struct UniformBufferObject {
 
 struct SkyBoxUniformBufferObject {
  alignas(16) glm::mat4 mvpMat;
- alignas(16) glm::mat4 mMat;
- alignas(16) glm::mat4 nMat;
 };
 
 
@@ -110,7 +108,6 @@ class MyProject : public BaseProject {
     Model M_BlueWin;
     Model M_RedWin;
     Model M_Reset;
-    Texture T_Reset;
     Texture T_Win;
     DescriptorSet DS_BlueWin;
     DescriptorSet DS_RedWin;
@@ -347,11 +344,11 @@ class MyProject : public BaseProject {
         });
         
         M_Reset.init(this, "models/Restart.obj");
-        T_Reset.init(this, "textures/white.jpeg");
         DS_Reset.init(this, &DSLobj, {
             {0, UNIFORM, sizeof(UniformBufferObject), nullptr},
-            {1, TEXTURE, 0, &T_Reset}
+            {1, TEXTURE, 0, &T_Win}
         });
+        
         
 
         DS_global.init(this, &DSLglobal, {
@@ -421,7 +418,6 @@ class MyProject : public BaseProject {
         DS_RedWin.cleanup();
         DS_Reset.cleanup();
         T_Win.cleanup();
-        T_Reset.cleanup();
         M_BlueWin.cleanup();
         M_RedWin.cleanup();
         M_Reset.cleanup();
@@ -664,12 +660,14 @@ class MyProject : public BaseProject {
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers_Reset, offsets_Reset);
         vkCmdBindIndexBuffer(commandBuffer, M_Reset.indexBuffer, 0,
             VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(commandBuffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
-         P1.pipelineLayout, 1, 1, &DS_Reset.descriptorSets[currentImage],
-            0, nullptr);
-        vkCmdDrawIndexed(commandBuffer,
-            static_cast<uint32_t>(M_Reset.indices.size()), 1, 0, 0, 0);
+    
+                vkCmdBindDescriptorSets(commandBuffer,
+                            VK_PIPELINE_BIND_POINT_GRAPHICS,
+                         P1.pipelineLayout, 1, 1, &DS_Reset.descriptorSets[currentImage],
+                            0, nullptr);
+                vkCmdDrawIndexed(commandBuffer,
+                            static_cast<uint32_t>(M_Reset.indices.size()), 1, 0, 0, 0);
+                
       
     }
 
@@ -727,8 +725,7 @@ class MyProject : public BaseProject {
         memcpy(data, &gubo, sizeof(gubo));
         vkUnmapMemory(device, DS_global.uniformBuffersMemory[0][currentImage]);
 
-        subo.mMat = glm::mat4(1.0f);
-        subo.nMat = glm::mat4(1.0f);
+        
         subo.mvpMat = gubo.proj * gubo.view;
         subo.mvpMat = glm::scale(subo.mvpMat, glm::vec3(3.0f));
                 
@@ -883,10 +880,13 @@ class MyProject : public BaseProject {
                     glm::scale(glm::mat4(1.0),glm::vec3(0.08f)) * glm::rotate(glm::mat4(1.0), glm::radians(270.0f), glm::vec3(0,1,0))
                     *glm::rotate(glm::mat4(1.0), glm::radians(-30.0f), glm::vec3(1,0,0));
                     
+                    
                     vkMapMemory(device, DS_Reset.uniformBuffersMemory[0][currentImage], 0,
                                         sizeof(ubo), 0, &data);
                     memcpy(data, &ubo, sizeof(ubo));
                     vkUnmapMemory(device, DS_Reset.uniformBuffersMemory[0][currentImage]);
+                    
+                    
                     
                     break;
                     
@@ -904,17 +904,14 @@ class MyProject : public BaseProject {
                     ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.7f, 0.2f, 0.0f))*
                     glm::scale(glm::mat4(1.0),glm::vec3(0.08f)) * glm::rotate(glm::mat4(1.0), glm::radians(90.0f), glm::vec3(0,1,0))
                     * glm::rotate(glm::mat4(1.0), glm::radians(-30.0f), glm::vec3(1,0,0));
-                     
-                    
+      
                     vkMapMemory(device, DS_Reset.uniformBuffersMemory[0][currentImage], 0,
                                         sizeof(ubo), 0, &data);
                     memcpy(data, &ubo, sizeof(ubo));
                     vkUnmapMemory(device, DS_Reset.uniformBuffersMemory[0][currentImage]);
                     break;
             }
-            
-            
-            
+    
         }
         else {
             ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.4f, 0.2f))*
@@ -924,11 +921,6 @@ class MyProject : public BaseProject {
                                 sizeof(ubo), 0, &data);
             memcpy(data, &ubo, sizeof(ubo));
             vkUnmapMemory(device, DS_BlueWin.uniformBuffersMemory[0][currentImage]);
-            //Reset
-            vkMapMemory(device, DS_Reset.uniformBuffersMemory[0][currentImage], 0,
-                                sizeof(ubo), 0, &data);
-            memcpy(data, &ubo, sizeof(ubo));
-            vkUnmapMemory(device, DS_Reset.uniformBuffersMemory[0][currentImage]);
                     
             ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.4f, 0.2f))*
             glm::scale(glm::mat4(1.0),glm::vec3(0.2f));
@@ -944,6 +936,7 @@ class MyProject : public BaseProject {
                                 sizeof(ubo), 0, &data);
             memcpy(data, &ubo, sizeof(ubo));
             vkUnmapMemory(device, DS_Reset.uniformBuffersMemory[0][currentImage]);
+
         }
         
     }
@@ -1388,6 +1381,8 @@ class MyProject : public BaseProject {
                     puck.vx=0;
                     puck.vy=0;
                     state=PAUSE;
+                    oldView=view;
+                    view=ABOVE;
                     commandBufferUpdate=true;
                 }
                 
@@ -1395,7 +1390,7 @@ class MyProject : public BaseProject {
             }
             case VICTORY:
                 
-
+                
                 if(rightPlayerScore==GOAL_SCORE) view = RIGHTPLAYER;
                 else if(leftPlayerScore==GOAL_SCORE) view = LEFTPLAYER;
                 
@@ -1403,8 +1398,6 @@ class MyProject : public BaseProject {
                 leftPlayerScore = -1;
                 
                 if (glfwGetKey(window, GLFW_KEY_R) && isDebounced()) {
-
-                    
                     rightPlayerScore = 0;
                     leftPlayerScore = 0;
                     view = oldView;
@@ -1415,6 +1408,8 @@ class MyProject : public BaseProject {
             case PAUSE:
                 if (glfwGetKey(window, GLFW_KEY_P) && isDebounced()) {
                     state=RESUME;
+                    view=oldView;
+                    
                 }
                 
                 if (glfwGetKey(window, GLFW_KEY_L) && isDebounced() ) {

@@ -3,8 +3,6 @@
 
 layout(binding = 0) uniform SkyBoxUniformBufferObject {
 	mat4 mvpMat;
-	mat4 mMat;
-	mat4 nMat;
 } ubo;
 
 layout(location = 0) in vec3 inPosition;

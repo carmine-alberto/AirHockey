@@ -18,7 +18,6 @@ layout(set = 1, binding = 0) uniform UniformBufferObject {
 } ubo;
 
 
-
 layout(set=1, binding = 1) uniform sampler2D texSampler;
 
 layout(location = 0) in vec3 fragPos;
