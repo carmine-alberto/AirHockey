@@ -43,22 +43,24 @@ vec3 computePhongSpec(vec3 N, vec3 pos, vec3 lightPos, vec3 Cs, vec3 V, float ga
     
     vec3 direction = normalize(lightPos - pos);
     vec3 r_lx = -reflect(direction, N);
-    vec3 f_specular =  Cs * pow(clamp (dot(V,r_lx), 0,1), gamma);
+    vec3 f_specular =  Cs * pow(clamp(dot(V,r_lx), 0,1), gamma);
     return f_specular;
 }
 
 //compute the color
-vec3 computeSpotColor(float beta, float g, vec3 pos, vec3 lightPos, vec3 lightColor, vec3 lightDir, float cos, float sin){
-    vec3 fact1 = pow(beta/length(pos - lightPos), g) * lightColor;
-    float fact2 = clamp((dot(normalize(lightPos - pos), lightDir) - cos) / (sin - cos),
+vec3 computeSpotColor(float beta, float g, vec3 pos, vec3 lightPos, vec3 lightColor, vec3 lightDir, float cos_out, float cos_in){
+    vec3 fact1 = pow(g/length(pos - lightPos), beta) * lightColor;
+    float fact2 = clamp((dot(normalize(lightPos - pos), lightDir) - cos_out) / (cos_in - cos_out),
                         0,
                         1);
     vec3 col = fact1 * fact2;
     return col;
 }
 
-vec3 Toon_Diffuse_BRDF(vec3 L, vec3 N, vec3 V, vec3 C, vec3 Cd, float thr) {
-    float LN = dot(L, N);
+vec3 Toon_Diffuse_BRDF(vec3 lightPos, vec3 pos, vec3 N, vec3 V, vec3 C, vec3 Cd, float thr) {
+    
+	vec3 L = normalize(lightPos - pos);
+	float LN = dot(L, N);
     vec3 f_specular = C;// Light areas
     if (LN < 0){
         return vec3(0,0,0); // Opposite area
@@ -69,7 +71,8 @@ vec3 Toon_Diffuse_BRDF(vec3 L, vec3 N, vec3 V, vec3 C, vec3 Cd, float thr) {
     return f_specular;
 }
 
-vec3 Toon_Specular_BRDF(vec3 L, vec3 N, vec3 V, vec3 C, float thr)  {
+vec3 Toon_Specular_BRDF(vec3 lightPos, vec3 pos, vec3 N, vec3 V, vec3 C, float thr)  {
+	vec3 L = normalize(lightPos - pos);
     vec3 r = 2* N * dot(L, N) - L;
     vec3 f_specular = C;
     if (dot(V, r) < thr){
@@ -80,14 +83,12 @@ vec3 Toon_Specular_BRDF(vec3 L, vec3 N, vec3 V, vec3 C, float thr)  {
 
 
 
-
-
 void main() {
     vec3 Norm = normalize(fragNorm);
-    vec3 EyeDir = normalize(gubo.eyePos.xyz - fragPos);
+    vec3 EyeDir = normalize(gubo.eyePos - fragPos);
     float gamma = 50.0f;
     vec3 TextureCol = texture(texSampler, fragTexCoord).rgb;
-    vec3 GreyCol = vec3(min(min(TextureCol.r, TextureCol.g),TextureCol.b));
+    vec3 GreyCol = 2.0f / 3.0f * vec3(max(max(TextureCol.r, TextureCol.g),TextureCol.b));
     vec3 DifCol= gubo.selector.x * TextureCol + (1-gubo.selector.x) * GreyCol;
     vec3 SpecCol = vec3(1.0f, 1.0f, 1.0f);
     
@@ -101,30 +102,33 @@ void main() {
     vec3 pos7= gubo.spotPosition2 + vec3(0.25f, 1.0f, 0.0f);
     vec3 pos8= gubo.spotPosition2 + vec3(0.8f, 1.0f, 0.0f);
     
-    //Lambert diffuse
+    //Lambert diffuse OR Toon Diffuse
+	//Toon: vec3 lightPos, vec3 pos, vec3 N, vec3 V, vec3 C, vec3 Cd, float thr
     //vec3 lightDiff = computeLambertDiff(Norm, fragPos, gubo.lightPos ,DifCol);
-    vec3 Diff1 = gubo.selector.y *computeLambertDiff(Norm, fragPos, pos1 ,DifCol)  ;
-    vec3 Diff2 = computeLambertDiff(Norm, fragPos, pos2 ,DifCol);
-    vec3 Diff3 = computeLambertDiff(Norm, fragPos, pos3 ,DifCol);
-    vec3 Diff4 = computeLambertDiff(Norm, fragPos, pos4 ,DifCol);
-    vec3 Diff5 = computeLambertDiff(Norm, fragPos, pos5 ,DifCol);
-    vec3 Diff6 = computeLambertDiff(Norm, fragPos, pos6 ,DifCol);
-    vec3 Diff7 = computeLambertDiff(Norm, fragPos, pos7 ,DifCol);
-    vec3 Diff8 = computeLambertDiff(Norm, fragPos, pos8 ,DifCol);
+    vec3 Diff1 = gubo.selector.y * computeLambertDiff(Norm, fragPos, pos1 ,DifCol) + (1.0f - gubo.selector.y) * Toon_Diffuse_BRDF(pos1, fragPos, Norm, EyeDir, DifCol, DifCol*0.8f, 0.85);
+    vec3 Diff2 = gubo.selector.y * computeLambertDiff(Norm, fragPos, pos2 ,DifCol) + (1.0f - gubo.selector.y) * Toon_Diffuse_BRDF(pos2, fragPos, Norm, EyeDir, DifCol, DifCol*0.8f, 0.85);
+    vec3 Diff3 = gubo.selector.y * computeLambertDiff(Norm, fragPos, pos3 ,DifCol) + (1.0f - gubo.selector.y) * Toon_Diffuse_BRDF(pos3, fragPos, Norm, EyeDir, DifCol, DifCol*0.8f, 0.85);
+    vec3 Diff4 = gubo.selector.y * computeLambertDiff(Norm, fragPos, pos4 ,DifCol) + (1.0f - gubo.selector.y) * Toon_Diffuse_BRDF(pos4, fragPos, Norm, EyeDir, DifCol, DifCol*0.8f, 0.85);
+    vec3 Diff5 = gubo.selector.y * computeLambertDiff(Norm, fragPos, pos5 ,DifCol) + (1.0f - gubo.selector.y) * Toon_Diffuse_BRDF(pos5, fragPos, Norm, EyeDir, DifCol, DifCol*0.8f, 0.85);
+    vec3 Diff6 = gubo.selector.y * computeLambertDiff(Norm, fragPos, pos6 ,DifCol) + (1.0f - gubo.selector.y) * Toon_Diffuse_BRDF(pos6, fragPos, Norm, EyeDir, DifCol, DifCol*0.8f, 0.85);
+    vec3 Diff7 = gubo.selector.y * computeLambertDiff(Norm, fragPos, pos7 ,DifCol) + (1.0f - gubo.selector.y) * Toon_Diffuse_BRDF(pos7, fragPos, Norm, EyeDir, DifCol, DifCol*0.8f, 0.85);
+    vec3 Diff8 = gubo.selector.y * computeLambertDiff(Norm, fragPos, pos8 ,DifCol) + (1.0f - gubo.selector.y) * Toon_Diffuse_BRDF(pos8, fragPos, Norm, EyeDir, DifCol, DifCol*0.8f, 0.85);
     
     //Phong specular
-    //vec3 lightSpec = computePhongSpec(Norm, fragPos, gubo.lightPos, SpecCol, EyeDir, gamma);
-    vec3 Spec1 = computePhongSpec(Norm, fragPos, pos1, SpecCol, EyeDir, gamma);
-    vec3 Spec2 = computePhongSpec(Norm, fragPos, pos2, SpecCol, EyeDir, gamma);
-    vec3 Spec3 = computePhongSpec(Norm, fragPos, pos3, SpecCol, EyeDir, gamma);
-    vec3 Spec4 = computePhongSpec(Norm, fragPos, pos4, SpecCol, EyeDir, gamma);
-    vec3 Spec5 = computePhongSpec(Norm, fragPos, pos5, SpecCol, EyeDir, gamma);
-    vec3 Spec6 = computePhongSpec(Norm, fragPos, pos6, SpecCol, EyeDir, gamma);
-    vec3 Spec7 = computePhongSpec(Norm, fragPos, pos7, SpecCol, EyeDir, gamma);
-    vec3 Spec8 = computePhongSpec(Norm, fragPos, pos8, SpecCol, EyeDir, gamma);
+    //vec3 lightSpec = computePhongSpec(Norm, fragPos, gubo.lightPos, SpecCol, EyeDir, gamma); ///Toon: Toon_Specular_BRDF(vec3 lightPos, vec3 pos, vec3 N, vec3 V, vec3 C, float thr)    
+    vec3 Spec1 = gubo.selector.y * computePhongSpec(Norm, fragPos, pos1, SpecCol, EyeDir, gamma) + (1.0f - gubo.selector.y) * Toon_Specular_BRDF(pos1, fragPos, Norm, EyeDir, vec3(1.0f), 0.93);
+    vec3 Spec2 = gubo.selector.y * computePhongSpec(Norm, fragPos, pos2, SpecCol, EyeDir, gamma) + (1.0f - gubo.selector.y) * Toon_Specular_BRDF(pos2, fragPos, Norm, EyeDir, vec3(1.0f), 0.93);
+    vec3 Spec3 = gubo.selector.y * computePhongSpec(Norm, fragPos, pos3, SpecCol, EyeDir, gamma) + (1.0f - gubo.selector.y) * Toon_Specular_BRDF(pos3, fragPos, Norm, EyeDir, vec3(1.0f), 0.93);
+    vec3 Spec4 = gubo.selector.y * computePhongSpec(Norm, fragPos, pos4, SpecCol, EyeDir, gamma) + (1.0f - gubo.selector.y) * Toon_Specular_BRDF(pos4, fragPos, Norm, EyeDir, vec3(1.0f), 0.93);
+    vec3 Spec5 = gubo.selector.y * computePhongSpec(Norm, fragPos, pos5, SpecCol, EyeDir, gamma) + (1.0f - gubo.selector.y) * Toon_Specular_BRDF(pos5, fragPos, Norm, EyeDir, vec3(1.0f), 0.93);
+    vec3 Spec6 = gubo.selector.y * computePhongSpec(Norm, fragPos, pos6, SpecCol, EyeDir, gamma) + (1.0f - gubo.selector.y) * Toon_Specular_BRDF(pos6, fragPos, Norm, EyeDir, vec3(1.0f), 0.93);
+    vec3 Spec7 = gubo.selector.y * computePhongSpec(Norm, fragPos, pos7, SpecCol, EyeDir, gamma) + (1.0f - gubo.selector.y) * Toon_Specular_BRDF(pos7, fragPos, Norm, EyeDir, vec3(1.0f), 0.93);
+    vec3 Spec8 = gubo.selector.y * computePhongSpec(Norm, fragPos, pos8, SpecCol, EyeDir, gamma) + (1.0f - gubo.selector.y) * Toon_Specular_BRDF(pos8, fragPos, Norm, EyeDir, vec3(1.0f), 0.93);
     
     
     //Spot light color
+	//IN
+	//float beta, float g, vec3 pos, vec3 lightPos, vec3 lightColor, vec3 lightDir, float cos_out, float cos_in
     //vec3 lightCol = pow(gubo.coneInOutDecayExp.z/length(fragPos - gubo.lightPos), gubo.coneInOutDecayExp.w) * gubo.lightColor;
     vec3 Col1 = computeSpotColor(gubo.coneInOutDecayExp.w, gubo.coneInOutDecayExp.z, fragPos, pos1, gubo.lightColor, gubo.spotDirection,gubo.coneInOutDecayExp.x, gubo.coneInOutDecayExp.y);
     vec3 Col2 = computeSpotColor(gubo.coneInOutDecayExp.w, gubo.coneInOutDecayExp.z, fragPos, pos2, gubo.lightColor, gubo.spotDirection, gubo.coneInOutDecayExp.x, gubo.coneInOutDecayExp.y);
@@ -139,13 +143,7 @@ void main() {
     //Ambient
     vec3 ambient = gubo.ambColor*DifCol;
     
-    vec3 computed_col = Col1*(Diff1+Spec1) + Col2*(Diff2+Spec2) + Col3*(Diff3+Spec3) + Col4*(Diff4+Spec4) + Col5*(Diff5+Spec5) + Col6*(Diff6+Spec6) + Col7*(Diff7+Spec7) + Col8*(Diff8+Spec8) + ambient ;
+    vec3 computed_col = clamp(Col1*(Diff1+Spec1) + Col2*(Diff2+Spec2) + Col3*(Diff3+Spec3) + Col4*(Diff4+Spec4) + Col5*(Diff5+Spec5) + Col6*(Diff6+Spec6) + Col7*(Diff7+Spec7) + Col8*(Diff8+Spec8) + ambient, 0, 1);
     outColor = vec4(computed_col, 1.0);
     
-    /*
-    gl_Position = gubo.proj * gubo.view * ubo.model * vec4(pos, 1.0);
-    fragViewDir  = (gubo.view[3]).xyz - (ubo.model * vec4(pos,  1.0)).xyz;
-    fragNorm     = (ubo.model * vec4(norm, 0.0)).xyz;
-    fragTexCoord = texCoord;
-     */
 }
