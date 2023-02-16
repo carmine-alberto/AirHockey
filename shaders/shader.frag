@@ -50,10 +50,15 @@ vec3 computePhongSpec(vec3 N, vec3 pos, vec3 lightPos, vec3 Cs, vec3 V, float ga
 //compute the color
 vec3 computeSpotColor(float beta, float g, vec3 pos, vec3 lightPos, vec3 lightColor, vec3 lightDir, float cos_out, float cos_in){
     vec3 fact1 = pow(g/length(pos - lightPos), beta) * lightColor;
-    float fact2 = clamp((dot(normalize(lightPos - pos), lightDir) - cos_out) / (cos_in - cos_out),
-                        0,
-                        1);
-    vec3 col = fact1 * fact2;
+    float tempFact2 = clamp((dot(normalize(lightPos - pos), lightDir) - cos_out) / (cos_in - cos_out), 0, 1);
+	float fact2;
+	
+	if (gubo.selector.y == 0.0f && tempFact2 > 0 && tempFact2 < 1)
+		fact2 = tempFact2 * 0.7f;
+	else
+		fact2 = tempFact2;	
+	
+	vec3 col = fact1 * fact2;
     return col;
 }
 

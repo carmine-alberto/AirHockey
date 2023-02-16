@@ -12,7 +12,7 @@
 
 
 //const SkyBoxModel  SkyBoxToLoad1 = { "SkyBoxCube.obj", OBJ, {"skybox/sea/posx.jpg", "skybox/sea/negx.jpg", "skybox/sea/posy.jpg", "skybox/sea/negy.jpg", "skybox/sea/posz.jpg", "skybox/sea/negz.jpg"} };
-const SkyBoxModel  SkyBoxToLoad[NUM_TEXTURES] = {
+const SkyBoxModel  SkyBoxToLoad[] = {
     {"SkyBoxCube.obj", OBJ, {"skybox/space/bkg1_right.jpeg", "skybox/space/bkg1_left.jpeg", "skybox/space/bkg1_top.jpeg", "skybox/space/bkg1_bot.jpeg", "skybox/space/bkg1_front.jpeg", "skybox/space/bkg1_back.jpeg"}},
     {"SkyBoxCube.obj", OBJ, {"skybox/cloudy/px.png", "skybox/cloudy/nx.png", "skybox/cloudy/py.png", "skybox/cloudy/ny.png", "skybox/cloudy/pz.png", "skybox/cloudy/nz.png"}}, 
     {"SkyBoxCube.obj", OBJ, {"skybox/superMario/px.png", "skybox/superMario/nx.png", "skybox/superMario/py.png", "skybox/superMario/ny.png", "skybox/superMario/pz.png", "skybox/superMario/nz.png"}}
@@ -623,11 +623,11 @@ protected:
 
         //** spot light **/
         //gubo.lightPos = glm::vec3(0.0f, 4.0f, -4.0f);
-        /*if (skyBox != TOON)
+        if (skyBox != TOON)
             sel.y = 1.0f;
         else
             sel.y = 0.0f;
-            */
+            
 
         gubo.selector=sel;  //Default settings: 1 (noGrey), 1 (Lambert-Phong)
         
