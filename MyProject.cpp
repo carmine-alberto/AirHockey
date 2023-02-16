@@ -83,7 +83,7 @@ protected:
     //Puck
     Model M_Puck;
     Texture T_Puck;
-    DescriptorSet DS_Puck;    // instance DSLobj
+    DescriptorSet DS_Puck;    
     //Paddle
     Model M_Paddle;
     Texture T_LeftPaddle;
@@ -122,8 +122,8 @@ protected:
     DescriptorSet* toBind; 
 
     //Other variables
-    int leftPlayerScore = 5;
-    int rightPlayerScore = 5;
+    int leftPlayerScore = 0;
+    int rightPlayerScore = 0;
 
     //Assumption: the table is centered in (0, 0)
     float halfTableLength = 1.7428f / 2;
@@ -207,9 +207,8 @@ protected:
         initialBackgroundColor = {0.0f, 0.5f, 0.0f, 1.0f};
         
         // Descriptor pool sizes
-        //TODO Check the number is tight
         uniformBlocksInPool = 30;
-        texturesInPool = 28;
+        texturesInPool = 29;
         setsInPool = 30;
     }
     
@@ -338,14 +337,18 @@ protected:
             {1, TEXTURE, 0, &T_Win}
         });
         
-        
 
         DS_global.init(this, &DSLglobal, {
                     {0, UNIFORM, sizeof(globalUniformBufferObject), nullptr}
                 });      
         
     }
-
+    
+    void localResizeInit(){
+        P1.init(this, "shaders/vert.spv", "shaders/frag.spv", {&DSLglobal, &DSLobj}, VK_COMPARE_OP_LESS);
+        P_SB.init(this, "shaders/SkyBoxVert.spv", "shaders/SkyBoxFrag.spv", {&DSL_SB}, VK_COMPARE_OP_LESS_OR_EQUAL);
+    }
+    
     // Here you destroy all the objects you created!
     //TODO Check everything is destroyed properly
     void localCleanup() {
@@ -413,6 +416,12 @@ protected:
         DSLobj.cleanup();              
     }
     
+    void localResizeCleanup(){
+        P1.cleanup();
+        P_SB.cleanup();
+    }
+
+
     // Here it is the creation of the command buffer:
     // You send to the GPU all the objects you want to draw,
     // with their buffers and textures
@@ -437,9 +446,7 @@ protected:
         vkCmdDrawIndexed(commandBuffer,
                                         static_cast<uint32_t>(M_SB.indices.size()), 1, 0, 0, 0);
                 
-   
-
-                
+        
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                 P1.graphicsPipeline);
         vkCmdBindDescriptorSets(commandBuffer,
@@ -714,7 +721,8 @@ protected:
         ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.48f, 0.56f)) *
             glm::rotate(glm::mat4(1.0), glm::radians(180.0f), glm::vec3(0, 1, 1)) *
             glm::rotate(glm::mat4(1.0), glm::radians(36.0f), glm::vec3(1, 0, 0)) *
-            glm::scale(glm::mat4(1.0), glm::vec3(0.11f, 0.11f, 0.08f));
+            glm::scale(glm::mat4(1.0), glm::vec3(0.08f*swapChainExtent.width / (float)swapChainExtent.height, 0.11f, 0.08f));
+            
         } else{
             ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.48f, 0.56f)) *
                 glm::rotate(glm::mat4(1.0), glm::radians(180.0f), glm::vec3(0, 1, 1)) *
@@ -1218,8 +1226,8 @@ protected:
 
         /*if (glfwGetKey(window, GLFW_KEY_ESCAPE))
             glfwSetWindowMonitor(window, NULL, 100, 20, windowWidth, windowHeight, 120);
-        TODO: if we want to add fullscreen -> windowed, we have to recreate the swapChain. 
-        See https://vulkan-tutorial.com/Drawing_a_triangle/Swap_chain_recreation
+        //TODO: if we want to add fullscreen -> windowed, we have to recreate the swapChain.
+        //See https://vulkan-tutorial.com/Drawing_a_triangle/Swap_chain_recreation
         */
         checkSkyBoxChanges();
         switch (state) {
