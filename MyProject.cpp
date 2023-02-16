@@ -7,9 +7,11 @@
 #define GOAL_SCORE 7
 #define DEBOUNCE_THRESHOLD 0.5f
 
-//const SkyBoxModel  SkyBoxToLoad1 = { "SkyBoxCube.obj", OBJ, {"skybox/sea/posx.jpg", "skybox/sea/negx.jpg", "skybox/sea/posy.jpg", "skybox/sea/negy.jpg", "skybox/sea/posz.jpg", "skybox/sea/negz.jpg"} };  
+//const SkyBoxModel  SkyBoxToLoad1 = { "SkyBoxCube.obj", OBJ, {"skybox/sea/posx.jpg", "skybox/sea/negx.jpg", "skybox/sea/posy.jpg", "skybox/sea/negy.jpg", "skybox/sea/posz.jpg", "skybox/sea/negz.jpg"} };
 const SkyBoxModel  SkyBoxToLoad1 = {"SkyBoxCube.obj", OBJ, {"skybox/space/bkg1_right.jpeg", "skybox/space/bkg1_left.jpeg", "skybox/space/bkg1_top.jpeg", "skybox/space/bkg1_bot.jpeg", "skybox/space/bkg1_front.jpeg", "skybox/space/bkg1_back.jpeg"}};
 const SkyBoxModel  SkyBoxToLoad2 = {"SkyBoxCube.obj", OBJ, {"skybox/cloudy/px.png", "skybox/cloudy/nx.png", "skybox/cloudy/py.png", "skybox/cloudy/ny.png", "skybox/cloudy/pz.png", "skybox/cloudy/nz.png"}};
+//const SkyBoxModel  SkyBoxToLoad3 = {"SkyBoxCube.obj", OBJ, {"skybox/superMario/px.png", "skybox/superMario/nx.png", "skybox/superMario/py.png", "skybox/superMario/ny.png", "skybox/superMario/pz.png", "skybox/superMario/nz.png"}};
+
 
 
 // The uniform buffer object used in this example
