@@ -83,7 +83,7 @@ protected:
     //Puck
     Model M_Puck;
     Texture T_Puck;
-    DescriptorSet DS_Puck;    // instance DSLobj
+    DescriptorSet DS_Puck;    
     //Paddle
     Model M_Paddle;
     Texture T_LeftPaddle;
@@ -122,8 +122,8 @@ protected:
     DescriptorSet* toBind; 
 
     //Other variables
-    int leftPlayerScore = 5;
-    int rightPlayerScore = 5;
+    int leftPlayerScore = 0;
+    int rightPlayerScore = 0;
 
     //Assumption: the table is centered in (0, 0)
     float halfTableLength = 1.7428f / 2;
@@ -207,9 +207,8 @@ protected:
         initialBackgroundColor = {0.0f, 0.5f, 0.0f, 1.0f};
         
         // Descriptor pool sizes
-        //TODO Check the number is tight
         uniformBlocksInPool = 30;
-        texturesInPool = 28;
+        texturesInPool = 29;
         setsInPool = 30;
     }
     
@@ -437,9 +436,7 @@ protected:
         vkCmdDrawIndexed(commandBuffer,
                                         static_cast<uint32_t>(M_SB.indices.size()), 1, 0, 0, 0);
                 
-   
-
-                
+        
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                 P1.graphicsPipeline);
         vkCmdBindDescriptorSets(commandBuffer,
