@@ -6,7 +6,7 @@
 #define NUM_CORNERS 4
 #define GOAL_SCORE 7
 #define DEBOUNCE_THRESHOLD 0.5f
-#define NUM_TEXTURES 3
+#define NUM_TEXTURES 4
 #define TIME_SPEED 1.5f
 #define REACTION_TIME 1.5f
 
@@ -15,7 +15,8 @@
 const SkyBoxModel  SkyBoxToLoad[] = {
     {"SkyBoxCube.obj", OBJ, {"skybox/space/bkg1_right.jpeg", "skybox/space/bkg1_left.jpeg", "skybox/space/bkg1_top.jpeg", "skybox/space/bkg1_bot.jpeg", "skybox/space/bkg1_front.jpeg", "skybox/space/bkg1_back.jpeg"}},
     {"SkyBoxCube.obj", OBJ, {"skybox/cloudy/px.png", "skybox/cloudy/nx.png", "skybox/cloudy/py.png", "skybox/cloudy/ny.png", "skybox/cloudy/pz.png", "skybox/cloudy/nz.png"}}, 
-    {"SkyBoxCube.obj", OBJ, {"skybox/superMario/px.png", "skybox/superMario/nx.png", "skybox/superMario/py.png", "skybox/superMario/ny.png", "skybox/superMario/pz.png", "skybox/superMario/nz.png"}}
+    {"SkyBoxCube.obj", OBJ, {"skybox/superMario/px.png", "skybox/superMario/nx.png", "skybox/superMario/py.png", "skybox/superMario/ny.png", "skybox/superMario/pz.png", "skybox/superMario/nz.png"}},
+    {"SkyBoxCube.obj", OBJ, {"skybox/sea/posx.jpg", "skybox/sea/negx.jpg", "skybox/sea/posy.jpg", "skybox/sea/negy.jpg", "skybox/sea/posz.jpg", "skybox/sea/negz.jpg"}}
 };
 
 
@@ -184,7 +185,8 @@ protected:
     enum skyBoxes {
         SPACE,
         CLOUDS,
-        TOON
+        TOON,
+        MARINE
     } skyBox = SPACE;
 
     enum players {
@@ -207,9 +209,9 @@ protected:
         initialBackgroundColor = {0.0f, 0.5f, 0.0f, 1.0f};
         
         // Descriptor pool sizes
-        uniformBlocksInPool = 30;
-        texturesInPool = 29;
-        setsInPool = 30;
+        uniformBlocksInPool = 32;
+        texturesInPool = 31;
+        setsInPool = 32;
     }
     
     // Here you load and setup all your Vulkan objects
