@@ -604,7 +604,7 @@ protected:
       
     }
 
-    void updateGPUData(uint32_t currentImage) {
+    void updateUniformBuffers(uint32_t currentImage) {
         
         globalUniformBufferObject gubo{};
         UniformBufferObject ubo{};
@@ -1220,7 +1220,7 @@ protected:
 
     // Here is where you update the uniforms.
     // Very likely this will be where you will be writing the logic of your application.
-    void updateUniformBuffer(uint32_t currentImage) {
+    void gameLoop(uint32_t currentImage) {
         currentTime = std::chrono::system_clock::now();
         dt = std::chrono::duration<float>(currentTime - lastTime).count() * TIME_SPEED;
 
@@ -1348,7 +1348,7 @@ protected:
                 break;
         }
 
-        updateGPUData(currentImage);
+        updateUniformBuffers(currentImage);
 
         lastTime = currentTime;
     }

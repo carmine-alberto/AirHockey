@@ -54,7 +54,7 @@ vec3 computeSpotColor(float beta, float g, vec3 pos, vec3 lightPos, vec3 lightCo
 	float fact2;
 	
 	if (gubo.selector.y == 0.0f && tempFact2 > 0 && tempFact2 < 1)
-		fact2 = tempFact2 * 0.7f;
+		fact2 = 0.35f;
 	else
 		fact2 = tempFact2;	
 	

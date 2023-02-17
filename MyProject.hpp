@@ -1756,7 +1756,7 @@ class BaseProject {
                 }
                 imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 
-                updateUniformBuffer(imageIndex);
+                gameLoop(imageIndex);
 
                 vkResetFences(device, 1, &inFlightFences[currentFrame]);
 
@@ -1808,7 +1808,7 @@ class BaseProject {
                 currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
     }
 
-    virtual void updateUniformBuffer(uint32_t currentImage) = 0;
+    virtual void gameLoop(uint32_t currentImage) = 0;
 
     virtual void localCleanup() = 0;
     virtual void localResizeCleanup() = 0;
